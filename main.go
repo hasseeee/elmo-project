@@ -14,7 +14,7 @@ import (
 )
 
 type Room struct {
-	ID          int    `json:"id"`
+	ID          string    `json:"id"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
 }
@@ -127,7 +127,7 @@ func createRoomHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("新しい部屋を作成しました: ID=%d, Title=%s", newRoom.ID, newRoom.Title)
+	log.Printf("新しい部屋を作成しました: ID=%s, Title=%s", newRoom.ID, newRoom.Title)
 
 	// 3. 成功したことをクライアントに伝える
 	// 201 Createdステータスを返し、作成されたリソースをJSONで返す
