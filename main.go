@@ -44,7 +44,7 @@ func main() {
 	}
 
 	// 取得したパスワードを使って接続情報を作成
-	connStr := fmt.Sprintf("user=postgres password=%s dbname=elmo-db sslmode=disable", password)
+connStr := fmt.Sprintf("user=postgres password=%s dbname=elmo-db2 sslmode=disable client_encoding=utf8", password)
 
 	// データベースへの接続 (以降は変更なし)
 	db, err = sql.Open("pgx", connStr)
@@ -61,8 +61,9 @@ func main() {
 
 	
 	http.HandleFunc("/rooms", roomsHandler)
-    http.HandleFunc("/rooms/", getRoomByIdHandler) 
-    http.HandleFunc("/users", usersHandler)
+	http.HandleFunc("/rooms/", getRoomByIdHandler) 
+	http.HandleFunc("/users", usersHandler)
+	http.HandleFunc("/users/all", getUsersHandler) // Add route for getUsersHandler
 	log.Println("サーバー起動: http://localhost:8080")
 
 	err = http.ListenAndServe(":8080", nil)
@@ -255,3 +256,34 @@ func getRoomByIdHandler(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(room)
 }
 
+func getUsersHandler(w http.ResponseWriter, _ *http.Request) {
+	// 1. データベースから全ユーザーの情報を取得するSQLクエリを実行
+	rows, err := db.Query("SELECT id, user_name FROM users ORDER BY user_name ASC")
+	if err != nil {
+		log.Println("データベースクエリの実行に失敗しました:", err)
+		http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	// 2. 取得したデータを格納するためのGoのスライスを用意
+	var users []User
+
+	// 3. 1行ずつデータを取り出す
+	for rows.Next() {
+		var u User
+		// 取り出したデータをUser構造体の各フィールドに割り当てる
+		err := rows.Scan(&u.ID, &u.UserName)
+		if err != nil {
+			log.Println("データベースからのデータ読み取りに失敗しました:", err)
+			http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
+			return
+		}
+		// 割り当てたUserをスライスに追加
+		users = append(users, u)
+	}
+
+	// 4. 最終的な結果をJSON形式でクライアントに返す
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(users)
+}
