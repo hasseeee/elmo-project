@@ -11,6 +11,7 @@ import (
 	// godotenvパッケージをインポート
 	"github.com/joho/godotenv"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/matoous/go-nanoid/v2"
 )
 
 type Room struct {
@@ -118,9 +119,19 @@ func createRoomHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. データベースに新しい部屋をINSERTする
-	// QueryRowを使って、INSERTした行のIDを取得する
-	sqlStatement := `INSERT INTO rooms (title, description) VALUES ($1, $2) RETURNING id`
-	err = db.QueryRow(sqlStatement, newRoom.Title, newRoom.Description).Scan(&newRoom.ID)
+	// 6文字のIDをGoで生成する
+	newId, err := gonanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyz", 6)
+	if err != nil {
+		log.Println("IDの生成に失敗しました:", err)
+		http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
+		return
+	}
+	newRoom.ID = newId // 生成したIDをセット
+
+	// ★変更点：生成したIDを含めてINSERTする
+	sqlStatement := `INSERT INTO rooms (id, title, description) VALUES ($1, $2, $3)`
+	_, err = db.Exec(sqlStatement, newRoom.ID, newRoom.Title, newRoom.Description)
+
 	if err != nil {
 		log.Println("データベースへのINSERTに失敗しました:", err)
 		http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
