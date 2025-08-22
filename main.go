@@ -3,12 +3,10 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt" // fmtパッケージを追加
+	"fmt"
 	"log"
 	"net/http"
-	"os" // osパッケージを追加
-
-	// godotenvパッケージをインポート
+	"os"
 	"github.com/joho/godotenv"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/matoous/go-nanoid/v2"
@@ -31,28 +29,24 @@ type User struct {
 var db *sql.DB
 
 func main() {
-	// .envファイルを読み込む
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
 
-	// 環境変数からパスワードを取得
 	password := os.Getenv("DB_PASSWORD")
 	if password == "" {
 		log.Fatal("DB_PASSWORD not set in .env file")
 	}
 
-	// 取得したパスワードを使って接続情報を作成
-connStr := fmt.Sprintf("user=postgres password=%s dbname=elmo-db2 sslmode=disable client_encoding=utf8", password)
+connStr := fmt.Sprintf("user=postgres password=%s dbname=elmo-db sslmode=disable client_encoding=UTF8", password)
 
-	// データベースへの接続 (以降は変更なし)
 	db, err = sql.Open("pgx", connStr)
 	if err != nil {
 		log.Fatal("データベースへの接続に失敗しました:", err)
 	}
 	defer db.Close()
-	
+
 	err = db.Ping()
 	if err != nil {
 		log.Fatal("データベースへの疎通確認に失敗しました:", err)
@@ -63,7 +57,7 @@ connStr := fmt.Sprintf("user=postgres password=%s dbname=elmo-db2 sslmode=disabl
 	http.HandleFunc("/rooms", roomsHandler)
 	http.HandleFunc("/rooms/", getRoomByIdHandler) 
 	http.HandleFunc("/users", usersHandler)
-	http.HandleFunc("/users/all", getUsersHandler) // Add route for getUsersHandler
+	http.HandleFunc("/users/all", getUsersHandler)
 	log.Println("サーバー起動: http://localhost:8080")
 
 	err = http.ListenAndServe(":8080", nil)
@@ -72,7 +66,6 @@ connStr := fmt.Sprintf("user=postgres password=%s dbname=elmo-db2 sslmode=disabl
 	}
 }
 
-// roomsHandlerは、リクエストの種類(GET/POST)に応じて処理を振り分ける
 func roomsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
@@ -80,21 +73,17 @@ func roomsHandler(w http.ResponseWriter, r *http.Request) {
 	case "POST":
 		createRoomHandler(w, r)
 	default:
-		// GETとPOST以外のメソッドが来たら、エラーを返す
 		http.Error(w, "サポートされていないメソッドです", http.StatusMethodNotAllowed)
 	}
 }
 
-// /users へのリクエストを処理するハンドラ
 func usersHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	case "GET": // ★このGETの分岐を追加
+	case "GET":
 	getUsersHandler(w, r)
-	case "POST":
-		// もしPOSTリクエストなら、ユーザー作成の処理を呼び出す
+	case "POST":	
 		createUserHandler(w, r)
 	default:
-		// POST以外のメソッドが来たら、エラーを返す
 		http.Error(w, "サポートされていないメソッドです", http.StatusMethodNotAllowed)
 	}
 }
@@ -128,33 +117,27 @@ func getRoomsHandler(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-// 新しい部屋を作成するハンドラ
 func createRoomHandler(w http.ResponseWriter, r *http.Request) {
 	var newRoom Room
-	// 1. リクエストのJSONボディをデコードして、newRoomにマッピング
 	err := json.NewDecoder(r.Body).Decode(&newRoom)
 	if err != nil {
 		http.Error(w, "リクエストボディが不正です", http.StatusBadRequest)
 		return
 	}
 	
-	// タイトルが空の場合はエラー
 	if newRoom.Title == "" {
 		http.Error(w, "タイトルは必須です", http.StatusBadRequest)
 		return
 	}
 
-	// 2. データベースに新しい部屋をINSERTする
-	// 6文字のIDをGoで生成する
 	newId, err := gonanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyz", 6)
 	if err != nil {
 		log.Println("IDの生成に失敗しました:", err)
 		http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
 		return
 	}
-	newRoom.ID = newId // 生成したIDをセット
+	newRoom.ID = newId
 
-	// 生成したIDを含めてINSERTする
 	sqlStatement := `INSERT INTO rooms (id, title, description) VALUES ($1, $2, $3)`
 	_, err = db.Exec(sqlStatement, newRoom.ID, newRoom.Title, newRoom.Description)
 
@@ -166,50 +149,45 @@ func createRoomHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("新しい部屋を作成しました: ID=%s, Title=%s", newRoom.ID, newRoom.Title)
 
-	// 3. 成功したことをクライアントに伝える
-	// 201 Createdステータスを返し、作成されたリソースをJSONで返す
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(newRoom)
 }
 
-// 新しいユーザを作成するハンドラ
 func createUserHandler(w http.ResponseWriter, r *http.Request) {
 	var newUser User
-	//　リクエストのJSONボディをデコードして、newUserにマッピング
 	err := json.NewDecoder(r.Body).Decode(&newUser)
 	if err != nil {
 		http.Error(w, "リクエストボディが不正です", http.StatusBadRequest)
 		return
 	}
-	
-	// ユーザ名が空の場合はエラー
+
+	fmt.Println(newUser)
+
 	if newUser.UserName == "" {
 		http.Error(w, "ユーザ名必須です", http.StatusBadRequest)
 		return
 	}
 
-	const maxRetries = 10 // 無限ループを防ぐための最大試行回数
+	const maxRetries = 10
 	for i := 0; i < maxRetries; i++ {
-		// 1. 10文字のIDをGoで生成する
 		newId, err := gonanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyz", 8)
 		if err != nil {
 			log.Println("IDの生成に失敗しました:", err)
 			http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
 			return
 		}
-		newUser.ID = newId // 生成したIDをセット
 
-		// 2. 生成したIDを含めてINSERTする
+		newUser.ID = newId
+
 		sqlStatement := `INSERT INTO users (id, user_name) VALUES ($1, $2)`
 		_, err = db.Exec(sqlStatement, newUser.ID, newUser.UserName)
 
 		if err != nil {
-			// 3. エラーが「ユニーク制約違反」かどうかを判定
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 				log.Printf("User IDが重複しました。再試行します... (試行 %d回目)", i+1)
-				continue // ループの最初に戻って再試行
+				continue
 			}
 		
 			log.Println("データベースへのINSERTに失敗しました:", err)
@@ -217,49 +195,39 @@ func createUserHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-			// 4. INSERTが成功したらループを抜ける
-			log.Printf("新しいユーザを作成しました: ID=%s, Title=%s", newUser.ID, newUser.UserName)
+			log.Printf("新しいユーザを作成しました: ID=%s, UserName=%s", newUser.ID, newUser.UserName)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(newUser)
-			return // ハンドラを正常に終了
+			return
 	}
-	// ループが最大回数に達してしまった場合
 	log.Println("User IDの生成に最大回数失敗しました。")
 	http.Error(w, "サーバー内部で問題が発生しました。", http.StatusInternalServerError)
 }
 
-// IDを指定して特定の部屋を1件取得するハンドラ
 func getRoomByIdHandler(w http.ResponseWriter, r *http.Request) {
-    // 1. URLからID部分を文字列として抜き出す
-    // 例：/rooms/abcdef -> "abcdef" を取得
+
     id := strings.TrimPrefix(r.URL.Path, "/rooms/")
 
-    // 2. データベースに問い合わせて、指定されたIDの部屋を取得
     var room Room
     sqlStatement := `SELECT id, title, description FROM rooms WHERE id = $1`
-    // QueryRowは、結果が1行だけのクエリに使うと便利
     err := db.QueryRow(sqlStatement, id).Scan(&room.ID, &room.Title, &room.Description)
     if err != nil {
-        // データベースからのエラーを判定
         if err == sql.ErrNoRows {
             // もし行が見つからなかった場合 (sql.ErrNoRows)
             http.Error(w, "指定された部屋は見つかりません", http.StatusNotFound) // 404 Not Found
         } else {
-            // その他のデータベースエラー
             log.Println("データベースクエリの実行に失敗しました:", err)
             http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError) // 500 Internal Server Error
         }
         return
     }
 
-    // 3. 見つかった部屋の情報をJSONで返す
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(room)
 }
 
 func getUsersHandler(w http.ResponseWriter, _ *http.Request) {
-	// 1. データベースから全ユーザーの情報を取得するSQLクエリを実行
 	rows, err := db.Query("SELECT id, user_name FROM users ORDER BY user_name ASC")
 	if err != nil {
 		log.Println("データベースクエリの実行に失敗しました:", err)
@@ -268,24 +236,19 @@ func getUsersHandler(w http.ResponseWriter, _ *http.Request) {
 	}
 	defer rows.Close()
 
-	// 2. 取得したデータを格納するためのGoのスライスを用意
 	var users []User
 
-	// 3. 1行ずつデータを取り出す
 	for rows.Next() {
 		var u User
-		// 取り出したデータをUser構造体の各フィールドに割り当てる
 		err := rows.Scan(&u.ID, &u.UserName)
 		if err != nil {
 			log.Println("データベースからのデータ読み取りに失敗しました:", err)
 			http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
 			return
 		}
-		// 割り当てたUserをスライスに追加
 		users = append(users, u)
 	}
 
-	// 4. 最終的な結果をJSON形式でクライアントに返す
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(users)
 }
