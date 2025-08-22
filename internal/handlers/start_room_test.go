@@ -8,15 +8,13 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/gin-gonic/gin" // ★ Ginをインポート
 	"github.com/joho/godotenv"
 	"github.com/shuto.sawaki/elmo-project/internal/ai"
 	"github.com/shuto.sawaki/elmo-project/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// テストファイル内では、テスト関数だけを記述します。
-// RoomHandlerなどの構造体定義は room.go にあるので、ここでは書きません。
 
 func TestStartRoomHandler_Integration(t *testing.T) {
 	err := godotenv.Load("../../.env")
@@ -30,6 +28,7 @@ func TestStartRoomHandler_Integration(t *testing.T) {
 	realAIGenerator, err := ai.NewGeminiAIGenerator(ctx)
 	require.NoError(t, err, "本物のAIジェネレータの初期化に失敗しました")
 
+	// --- SQLモックの設定 (ここまでは同じ) ---
 	roomID := "r001"
 	rows := sqlmock.NewRows([]string{"id", "title", "description", "status"}).
 		AddRow(roomID, "Go言語のテスト", "テストコードの書き方について議論する部屋", "not started")
@@ -39,17 +38,31 @@ func TestStartRoomHandler_Integration(t *testing.T) {
 		WithArgs("inprogress", sqlmock.AnyArg(), roomID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	participantRows := sqlmock.NewRows([]string{"id", "user_name"}) // ★ 修正：DBのカラム名に合わせる
+	participantRows := sqlmock.NewRows([]string{"id", "user_name"})
 	mock.ExpectQuery(`SELECT u.id, u.user_name FROM participants p JOIN users u ON p.user_id = u.id WHERE p.room_id = \$1`).
 		WithArgs(roomID).
 		WillReturnRows(participantRows)
 
-	req := httptest.NewRequest(http.MethodGet, "/rooms/"+roomID+"/start", nil)
+	// ★★★ ここからGinのテスト形式に変更 ★★★
+	// 1. レスポンスを記録するためのRecorderを作成
 	w := httptest.NewRecorder()
 
-	handler := NewRoomHandler(db, realAIGenerator)
-	handler.StartRoom(w, req)
+	// 2. テスト用のGinコンテキストを作成
+	c, _ := gin.CreateTestContext(w)
 
+	// 3. テスト用のリクエストを作成
+	req := httptest.NewRequest(http.MethodGet, "/rooms/"+roomID+"/start", nil)
+	c.Request = req
+	
+	// 4. URLパラメータを設定
+	c.Params = gin.Params{gin.Param{Key: "id", Value: roomID}}
+
+	// 5. ハンドラを呼び出す
+	handler := NewRoomHandler(db, realAIGenerator)
+	handler.StartRoom(c)
+	// ★★★ ここまで変更 ★★★
+
+	// --- アサーション (ここからは同じ) ---
 	res := w.Result()
 	defer res.Body.Close()
 
