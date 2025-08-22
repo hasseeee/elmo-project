@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strings" // ★ 追加
 
 	"github.com/shuto.sawaki/elmo-project/internal/ai"
 	"github.com/shuto.sawaki/elmo-project/internal/db"
@@ -23,15 +24,12 @@ func main() {
 		log.Fatalf("AIジェネレータの初期化に失敗しました: %v", err)
 	}
 
-	// ハンドラーの初期化
 	roomHandler := handlers.NewRoomHandler(database, aiGenerator)
 	userHandler := handlers.NewUserHandler(database)
 	participantHandler := handlers.NewParticipantHandler(database)
 
-	// --- ルーティングの設定 ---
 	mux := http.NewServeMux()
 
-	// Room Handlers
 	mux.HandleFunc("/rooms", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -44,6 +42,7 @@ func main() {
 	})
 	mux.HandleFunc("/rooms/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
+		// ★ strings.HasSuffixが使えるようになります
 		if strings.HasSuffix(path, "/start") {
 			roomHandler.StartRoom(w, r)
 		} else if strings.HasSuffix(path, "/conclusion") {
@@ -55,10 +54,8 @@ func main() {
 		}
 	})
 
-	// User Handlers
 	mux.HandleFunc("/users", userHandler.CreateUser)
 
-	// Participant Handlers
 	mux.HandleFunc("/participants", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -69,7 +66,6 @@ func main() {
 			http.Error(w, "サポートされていないメソッドです", http.StatusMethodNotAllowed)
 		}
 	})
-
 
 	log.Println("サーバー起動: http://localhost:8080")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
