@@ -3,10 +3,9 @@ package handlers
 import (
 	"database/sql"
 	"errors"
-	"log"
 	"net/http"
 
-	"github.com/gin-gonic/gin" // ★ Ginをインポート
+	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/matoous/go-nanoid/v2"
 	"github.com/shuto.sawaki/elmo-project/internal/models"
@@ -35,12 +34,27 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 
 	const maxRetries = 10
 	for i := 0; i < maxRetries; i++ {
-		// ... (ID生成とDBへのINSERTロジックは同じ) ...
-		// 成功した場合
+		newId, err := gonanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyz", 8)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "サーバー内部エラーです"})
+			return
+		}
+		newUser.ID = newId
+
+		sqlStatement := `INSERT INTO users (id, user_name) VALUES ($1, $2)`
+		_, err = h.db.Exec(sqlStatement, newUser.ID, newUser.UserName)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				continue // IDが重複した場合はループを継続して再試行
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "サーバー内部エラーです"})
+			return
+		}
+
 		c.JSON(http.StatusCreated, newUser)
-		return
+		return // 成功したらループを抜ける
 	}
 
-	// 失敗した場合
 	c.JSON(http.StatusInternalServerError, gin.H{"error": "サーバー内部で問題が発生しました。"})
 }
