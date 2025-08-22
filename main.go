@@ -88,6 +88,8 @@ func roomsHandler(w http.ResponseWriter, r *http.Request) {
 // /users へのリクエストを処理するハンドラ
 func usersHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
+	case "GET": // ★このGETの分岐を追加
+	getUsersHandler(w, r)
 	case "POST":
 		// もしPOSTリクエストなら、ユーザー作成の処理を呼び出す
 		createUserHandler(w, r)
