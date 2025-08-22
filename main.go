@@ -13,12 +13,18 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/matoous/go-nanoid/v2"
 	"strings"
+	"errors"
 )
 
 type Room struct {
 	ID          string    `json:"id"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
+}
+
+type User struct {
+	ID			string	`json:"id"`
+	UserName	string `json:"user_name"`
 }
 
 var db *sql.DB
@@ -52,8 +58,10 @@ func main() {
 	}
 	log.Println("データベースへの接続に成功しました。")
 
+	
 	http.HandleFunc("/rooms", roomsHandler)
     http.HandleFunc("/rooms/", getRoomByIdHandler) 
+    http.HandleFunc("/users", usersHandler)
 	log.Println("サーバー起動: http://localhost:8080")
 
 	err = http.ListenAndServe(":8080", nil)
@@ -71,6 +79,18 @@ func roomsHandler(w http.ResponseWriter, r *http.Request) {
 		createRoomHandler(w, r)
 	default:
 		// GETとPOST以外のメソッドが来たら、エラーを返す
+		http.Error(w, "サポートされていないメソッドです", http.StatusMethodNotAllowed)
+	}
+}
+
+// /users へのリクエストを処理するハンドラ
+func usersHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "POST":
+		// もしPOSTリクエストなら、ユーザー作成の処理を呼び出す
+		createUserHandler(w, r)
+	default:
+		// POST以外のメソッドが来たら、エラーを返す
 		http.Error(w, "サポートされていないメソッドです", http.StatusMethodNotAllowed)
 	}
 }
@@ -130,7 +150,7 @@ func createRoomHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	newRoom.ID = newId // 生成したIDをセット
 
-	// ★変更点：生成したIDを含めてINSERTする
+	// 生成したIDを含めてINSERTする
 	sqlStatement := `INSERT INTO rooms (id, title, description) VALUES ($1, $2, $3)`
 	_, err = db.Exec(sqlStatement, newRoom.ID, newRoom.Title, newRoom.Description)
 
@@ -147,6 +167,62 @@ func createRoomHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(newRoom)
+}
+
+// 新しいユーザを作成するハンドラ
+func createUserHandler(w http.ResponseWriter, r *http.Request) {
+	var newUser User
+	//　リクエストのJSONボディをデコードして、newUserにマッピング
+	err := json.NewDecoder(r.Body).Decode(&newUser)
+	if err != nil {
+		http.Error(w, "リクエストボディが不正です", http.StatusBadRequest)
+		return
+	}
+	
+	// ユーザ名が空の場合はエラー
+	if newUser.UserName == "" {
+		http.Error(w, "ユーザ名必須です", http.StatusBadRequest)
+		return
+	}
+
+	const maxRetries = 10 // 無限ループを防ぐための最大試行回数
+	for i := 0; i < maxRetries; i++ {
+		// 1. 10文字のIDをGoで生成する
+		newId, err := gonanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyz", 8)
+		if err != nil {
+			log.Println("IDの生成に失敗しました:", err)
+			http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
+			return
+		}
+		newUser.ID = newId // 生成したIDをセット
+
+		// 2. 生成したIDを含めてINSERTする
+		sqlStatement := `INSERT INTO users (id, user_name) VALUES ($1, $2)`
+		_, err = db.Exec(sqlStatement, newUser.ID, newUser.UserName)
+
+		if err != nil {
+			// 3. エラーが「ユニーク制約違反」かどうかを判定
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				log.Printf("User IDが重複しました。再試行します... (試行 %d回目)", i+1)
+				continue // ループの最初に戻って再試行
+			}
+		
+			log.Println("データベースへのINSERTに失敗しました:", err)
+			http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
+			return
+		}
+
+			// 4. INSERTが成功したらループを抜ける
+			log.Printf("新しいユーザを作成しました: ID=%s, Title=%s", newUser.ID, newUser.UserName)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(newUser)
+			return // ハンドラを正常に終了
+	}
+	// ループが最大回数に達してしまった場合
+	log.Println("User IDの生成に最大回数失敗しました。")
+	http.Error(w, "サーバー内部で問題が発生しました。", http.StatusInternalServerError)
 }
 
 // IDを指定して特定の部屋を1件取得するハンドラ
@@ -177,3 +253,4 @@ func getRoomByIdHandler(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(room)
 }
+
