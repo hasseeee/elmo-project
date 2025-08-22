@@ -287,30 +287,33 @@ func (h *RoomHandler) StartRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Println("StartRoom: 部屋の状態と初期質問の更新が成功しました")
 
-	// 修正: ParticipantUser を使用して参加者リストを取得
 	participants := []models.ParticipantUser{}
-	rows, err := h.db.Query("SELECT id, name FROM participants WHERE room_id = $1", roomID)
+	// SQLをテストの期待値と一致するように、JOINを使って修正
+	rows, err := h.db.Query(`
+		SELECT u.id, u.user_name
+		FROM participants p
+		JOIN users u ON p.user_id = u.id
+		WHERE p.room_id = $1
+	`, roomID)
 	if err != nil {
-		log.Println("参加者リストの取得に失敗しました:", err)
-		http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var participant models.ParticipantUser
-		if err := rows.Scan(&participant.ID, &participant.Name); err != nil {
-			log.Println("参加者データの読み取りに失敗しました:", err)
+		// sql.ErrNoRows はエラーではないので、それ以外のエラーを処理
+		if err != sql.ErrNoRows {
+			log.Println("参加者リストの取得に失敗しました:", err)
 			http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
 			return
 		}
-		participants = append(participants, participant)
-	}
-
-	// 修正: participants が空の場合のデフォルト値設定
-	if len(participants) == 0 {
-		log.Println("参加者が存在しません")
-		participants = []models.ParticipantUser{}
+	} else {
+		defer rows.Close()
+		for rows.Next() {
+			var participant models.ParticipantUser
+			// Scanするカラムを u.id, u.user_name に合わせる
+			if err := rows.Scan(&participant.ID, &participant.Name); err != nil {
+				log.Println("参加者データの読み取りに失敗しました:", err)
+				http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
+				return
+			}
+			participants = append(participants, participant)
+		}
 	}
 
 	// レスポンスデータの生成
