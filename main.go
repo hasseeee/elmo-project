@@ -13,7 +13,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// (Room構造体は変更なし)
 type Room struct {
 	ID          int    `json:"id"`
 	Title       string `json:"title"`
@@ -36,7 +35,7 @@ func main() {
 	}
 
 	// 取得したパスワードを使って接続情報を作成
-	connStr := fmt.Sprintf("user=postgres password=%s dbname=chat_app_db sslmode=disable", password)
+	connStr := fmt.Sprintf("user=postgres password=%s dbname=elmo-db sslmode=disable", password)
 
 	// データベースへの接続 (以降は変更なし)
 	db, err = sql.Open("pgx", connStr)
@@ -45,21 +44,34 @@ func main() {
 	}
 	defer db.Close()
 	
-	// ... (以降のmain関数のコードは変更なし) ...
 	err = db.Ping()
 	if err != nil {
 		log.Fatal("データベースへの疎通確認に失敗しました:", err)
 	}
 	log.Println("データベースへの接続に成功しました。")
-	http.HandleFunc("/rooms", getRoomsHandler)
+
+	http.HandleFunc("/rooms", roomsHandler)
 	log.Println("サーバー起動: http://localhost:8080")
+
 	err = http.ListenAndServe(":8080", nil)
 	if err != nil {
 		log.Fatal("サーバーの起動に失敗しました:", err)
 	}
 }
 
-// (getRoomsHandler関数は変更なし)
+// roomsHandlerは、リクエストの種類(GET/POST)に応じて処理を振り分ける
+func roomsHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		getRoomsHandler(w, r)
+	case "POST":
+		createRoomHandler(w, r)
+	default:
+		// GETとPOST以外のメソッドが来たら、エラーを返す
+		http.Error(w, "サポートされていないメソッドです", http.StatusMethodNotAllowed)
+	}
+}
+
 func getRoomsHandler(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query("SELECT id, title, description FROM rooms ORDER BY id ASC")
 	if err != nil {
@@ -88,3 +100,4 @@ func getRoomsHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("JSONへの変換に失敗しました:", err)
 	}
 }
+
