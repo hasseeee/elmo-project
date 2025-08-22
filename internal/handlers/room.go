@@ -13,14 +13,19 @@ import (
 	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/shuto.sawaki/elmo-project/internal/models"
 	"google.golang.org/genai"
+	"github.com/shuto.sawaki/elmo-project/internal/ai" // aiパッケージをインポート
 )
 
 type RoomHandler struct {
-	db *sql.DB
+	db          *sql.DB
+	aiGenerator ai.AIGenerator // この行を追加
 }
 
-func NewRoomHandler(db *sql.DB) *RoomHandler {
-	return &RoomHandler{db: db}
+func NewRoomHandler(db *sql.DB, aiGen ai.AIGenerator) *RoomHandler { // aiGen引数を追加
+	return &RoomHandler{
+		db:          db,
+		aiGenerator: aiGen, // 受け取ったaiGenをセット
+	}
 }
 
 func (h *RoomHandler) HandleRooms(w http.ResponseWriter, r *http.Request) {

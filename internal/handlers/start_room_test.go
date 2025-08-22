@@ -1,96 +1,68 @@
 package handlers
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"os"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
-    "github.com/joho/godotenv"
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/joho/godotenv"
+	"github.com/shuto.sawaki/elmo-project/internal/ai"
+	"github.com/shuto.sawaki/elmo-project/internal/models"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-type MockAIResponse struct {
-	InitialQuestion string `json:"initial_question"`
-}
+// テストファイル内では、テスト関数だけを記述します。
+// RoomHandlerなどの構造体定義は room.go にあるので、ここでは書きません。
 
-type RoomInfo struct {
-	RoomID string `json:"room_id"`
-	Title  string `json:"title"`
-	Status string `json:"status"`
-}
+func TestStartRoomHandler_Integration(t *testing.T) {
+	err := godotenv.Load("../../.env")
+	require.NoError(t, err, ".envファイルの読み込みに失敗しました")
 
-type Participant struct {
-	UserID   string `json:"user_id"`
-	UserName string `json:"user_name"`
-}
-
-type StartRoomResponse struct {
-	InitialQuestion string       `json:"initial_question"`
-	RoomInfo        RoomInfo     `json:"room_info"`
-	Participants    []Participant `json:"participants"`
-}
-
-func TestStartRoomHandler(t *testing.T) {
-    err := godotenv.Load()
-    if err != nil {
-        t.Fatal(".envファイルの読み込みに失敗しました")
-    }
-
-	dbPassword := os.Getenv("DB_PASSWORD")
-    if dbPassword == "" {
-        t.Fatal("環境変数 DB_PASSWORD が設定されていません")
-    }
-
-	// モックデータベース接続
-	db, err := sql.Open("pgx", "user=postgres password=DB_PASSWORD dbname=elmo-db sslmode=disable")
-	if err != nil {
-		t.Fatalf("データベース接続エラー: %v", err)
-	}
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
 	defer db.Close()
 
-	// モックリクエスト
-	roomID := "r001"
-	url := "/rooms/" + roomID + "/start"
-	req := httptest.NewRequest(http.MethodPost, url, nil)
+	ctx := context.Background()
+	realAIGenerator, err := ai.NewGeminiAIGenerator(ctx)
+	require.NoError(t, err, "本物のAIジェネレータの初期化に失敗しました")
 
-	// モックレスポンス
+	roomID := "r001"
+	rows := sqlmock.NewRows([]string{"id", "title", "description", "status"}).
+		AddRow(roomID, "Go言語のテスト", "テストコードの書き方について議論する部屋", "not started")
+	mock.ExpectQuery(`SELECT id, title, description, status FROM rooms WHERE id = \$1`).WithArgs(roomID).WillReturnRows(rows)
+
+	mock.ExpectExec(`UPDATE rooms SET status = \$1, initial_question = \$2 WHERE id = \$3`).
+		WithArgs("inprogress", sqlmock.AnyArg(), roomID).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	participantRows := sqlmock.NewRows([]string{"id", "user_name"}) // ★ 修正：DBのカラム名に合わせる
+	mock.ExpectQuery(`SELECT u.id, u.user_name FROM participants p JOIN users u ON p.user_id = u.id WHERE p.room_id = \$1`).
+		WithArgs(roomID).
+		WillReturnRows(participantRows)
+
+	req := httptest.NewRequest(http.MethodGet, "/rooms/"+roomID+"/start", nil)
 	w := httptest.NewRecorder()
 
-	// RoomHandlerを使用してハンドラー関数を呼び出し
-	handler := NewRoomHandler(db)
+	handler := NewRoomHandler(db, realAIGenerator)
 	handler.StartRoom(w, req)
 
-	// レスポンスの検証
 	res := w.Result()
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
-		t.Errorf("期待したステータスコード: %d, 実際のステータスコード: %d", http.StatusOK, res.StatusCode)
-	}
+	require.Equal(t, http.StatusOK, res.StatusCode, "期待したステータスコードは200 OKでしたが、実際は%dでした", res.StatusCode)
 
-	var response StartRoomResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		t.Fatalf("レスポンスのデコードエラー: %v", err)
-	}
+	var response models.StartRoomResponse
+	err = json.NewDecoder(res.Body).Decode(&response)
+	require.NoError(t, err)
 
-	// 初期質問の検証
-	if response.InitialQuestion == "" {
-		t.Error("初期質問が生成されていません")
-	}
+	assert.NotEmpty(t, response.InitialQuestion)
+	assert.Equal(t, roomID, response.RoomInfo.RoomID)
+	assert.Equal(t, "inprogress", response.RoomInfo.Status)
+	assert.Len(t, response.Participants, 0)
 
-	// ルーム情報の検証
-	if response.RoomInfo.RoomID != roomID {
-		t.Errorf("期待したルームID: %s, 実際のルームID: %s", roomID, response.RoomInfo.RoomID)
-	}
-	if response.RoomInfo.Status != "inprogress" {
-		t.Errorf("期待したステータス: inprogress, 実際のステータス: %s", response.RoomInfo.Status)
-	}
-
-	// 参加者情報の検証
-	if len(response.Participants) == 0 {
-		t.Error("参加者情報が空です")
-	}
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

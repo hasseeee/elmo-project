@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context" // contextパッケージをインポート
 	"log"
 	"net/http"
 
+	"github.com/shuto.sawaki/elmo-project/internal/ai" // aiパッケージをインポート
 	"github.com/shuto.sawaki/elmo-project/internal/db"
 	"github.com/shuto.sawaki/elmo-project/internal/handlers"
 )
@@ -16,8 +18,18 @@ func main() {
 	}
 	defer database.Close()
 
+	// --- ここからが修正箇所 ---
+	// 本物のAIジェネレータを初期化
+	ctx := context.Background()
+	aiGenerator, err := ai.NewGeminiAIGenerator(ctx)
+	if err != nil {
+		log.Fatalf("AIジェネレータの初期化に失敗しました: %v", err)
+	}
+	// --- ここまで ---
+
 	// ハンドラーの初期化
-	roomHandler := handlers.NewRoomHandler(database)
+	// ★ 修正：NewRoomHandlerにaiGeneratorを2つ目の引数として渡す
+	roomHandler := handlers.NewRoomHandler(database, aiGenerator)
 	userHandler := handlers.NewUserHandler(database)
 	participantHandler := handlers.NewParticipantHandler(database)
 

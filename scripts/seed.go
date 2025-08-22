@@ -8,9 +8,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/joho/godotenv"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/matoous/go-nanoid/v2"
+	"github.com/joho/godotenv"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 var (

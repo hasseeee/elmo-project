@@ -4,7 +4,7 @@ package models
 type StartRoomResponse struct {
 	InitialQuestion string        `json:"initial_question"`
 	RoomInfo        RoomInfo      `json:"room_info"`
-	Participants    []Participant `json:"participants"`
+	Participants    []ParticipantUser `json:"participants"`
 }
 
 // RoomInfo represents information about a room
