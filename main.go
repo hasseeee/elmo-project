@@ -101,3 +101,37 @@ func getRoomsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// 新しい部屋を作成するハンドラ
+func createRoomHandler(w http.ResponseWriter, r *http.Request) {
+	var newRoom Room
+	// 1. リクエストのJSONボディをデコードして、newRoomにマッピング
+	err := json.NewDecoder(r.Body).Decode(&newRoom)
+	if err != nil {
+		http.Error(w, "リクエストボディが不正です", http.StatusBadRequest)
+		return
+	}
+	
+	// タイトルが空の場合はエラー
+	if newRoom.Title == "" {
+		http.Error(w, "タイトルは必須です", http.StatusBadRequest)
+		return
+	}
+
+	// 2. データベースに新しい部屋をINSERTする
+	// QueryRowを使って、INSERTした行のIDを取得する
+	sqlStatement := `INSERT INTO rooms (title, description) VALUES ($1, $2) RETURNING id`
+	err = db.QueryRow(sqlStatement, newRoom.Title, newRoom.Description).Scan(&newRoom.ID)
+	if err != nil {
+		log.Println("データベースへのINSERTに失敗しました:", err)
+		http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("新しい部屋を作成しました: ID=%d, Title=%s", newRoom.ID, newRoom.Title)
+
+	// 3. 成功したことをクライアントに伝える
+	// 201 Createdステータスを返し、作成されたリソースをJSONで返す
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(newRoom)
+}
