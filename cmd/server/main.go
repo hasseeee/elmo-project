@@ -23,7 +23,7 @@ func main() {
 
 	// ルーティングの設定
 	http.HandleFunc("/rooms", roomHandler.HandleRooms)
-	http.HandleFunc("/rooms/", roomHandler.GetRoomByID)
+	http.HandleFunc("/rooms/", roomHandler.HandleRoomRequests)
 	http.HandleFunc("/users", userHandler.HandleUsers)
 	http.HandleFunc("/participants", participantHandler.HandleParticipants)
 
