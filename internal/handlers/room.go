@@ -246,7 +246,7 @@ func (h *RoomHandler) StartRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// AI API を呼び出して「はじめの問いかけ」を生成
-	prompt := fmt.Sprintf("ルームタイトル: %s\n説明: %s\nこのルームに適した最初の問いかけを生成してください。", room.Title, room.Description)
+	prompt := fmt.Sprintf("Room Title: %s\nDescription: %s\nPlease generate only an engaging initial question for this discussion room. The question should encourage meaningful discussion and be relevant to the room's topic.", room.Title, room.Description)
 	response, err := client.Models.GenerateContent(context.Background(), "gemini-1.5-flash", []*genai.Content{
 		{Parts: []*genai.Part{{Text: prompt}}},
 	}, nil)
@@ -275,10 +275,12 @@ func (h *RoomHandler) StartRoom(w http.ResponseWriter, r *http.Request) {
 	updateStatement := `UPDATE rooms SET status = $1, initial_question = $2 WHERE id = $3`
 	_, err = h.db.Exec(updateStatement, "inprogress", initialQuestion, roomID)
 	if err != nil {
-		log.Println("部屋の更新に失敗しました:", err)
+		log.Printf("StartRoom: クエリ実行エラー - %v", err)
+		log.Printf("StartRoom: クエリ内容 - %s", updateStatement)
 		http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
 		return
 	}
+	log.Println("StartRoom: 部屋の状態と初期質問の更新が成功しました")
 
 	// 修正: ParticipantUser を使用して参加者リストを取得
 	participants := []models.ParticipantUser{}
@@ -300,7 +302,13 @@ func (h *RoomHandler) StartRoom(w http.ResponseWriter, r *http.Request) {
 		participants = append(participants, participant)
 	}
 
-	// 修正: 再代入時に `=` を使用
+	// 修正: participants が空の場合のデフォルト値設定
+	if len(participants) == 0 {
+		log.Println("参加者が存在しません")
+		participants = []models.ParticipantUser{}
+	}
+
+	// レスポンスデータの生成
 	responseData := map[string]interface{}{
 		"initial_question": initialQuestion,
 		"room_info": map[string]interface{}{
