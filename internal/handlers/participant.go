@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/gin-gonic/gin" // ★ Ginをインポート
+	"github.com/gin-gonic/gin"
 	"github.com/shuto.sawaki/elmo-project/internal/models"
 )
 
@@ -18,15 +18,29 @@ func NewParticipantHandler(db *sql.DB) *ParticipantHandler {
 
 // GET /participants
 func (h *ParticipantHandler) GetParticipants(c *gin.Context) {
-	// ★ クエリパラメータを取得します (例: /participants?room_id=r001)
 	roomID := c.Query("room_id")
 	if roomID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "room_idは必須です"})
 		return
 	}
-	// ... (DBから参加者リストを取得するロジック) ...
+
+	rows, err := h.db.Query("SELECT u.id, u.user_name FROM participants p JOIN users u ON p.user_id = u.id WHERE p.room_id = $1", roomID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "サーバー内部エラーです"})
+		return
+	}
+	defer rows.Close()
+
 	var users []models.ParticipantUser
-	// ...
+	for rows.Next() {
+		var user models.ParticipantUser
+		if err := rows.Scan(&user.ID, &user.Name); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "サーバー内部エラーです"})
+			return
+		}
+		users = append(users, user)
+	}
+
 	response := models.ParticipantsResponse{
 		RoomID: roomID,
 		Users:  users,
@@ -41,6 +55,16 @@ func (h *ParticipantHandler) AddParticipant(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "リクエストボディが不正です"})
 		return
 	}
-	// ... (DBに参加者を追加するロジック) ...
+
+	if req.RoomID == "" || req.UserID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "room_idとuser_idは必須です"})
+		return
+	}
+
+	_, err := h.db.Exec("INSERT INTO participants (room_id, user_id) VALUES ($1, $2)", req.RoomID, req.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "参加者の追加に失敗しました"})
+		return
+	}
 	c.Status(http.StatusCreated)
 }
