@@ -12,6 +12,7 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/matoous/go-nanoid/v2"
+	"github.com/jackc/pgx/v5/pgconn"
 	"strings"
 	"errors"
 )
