@@ -72,7 +72,7 @@ func roomsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getRoomsHandler(w http.ResponseWriter, r *http.Request) {
+func getRoomsHandler(w http.ResponseWriter, _ *http.Request) {
 	rows, err := db.Query("SELECT id, title, description FROM rooms ORDER BY id ASC")
 	if err != nil {
 		log.Println("データベースクエリの実行に失敗しました:", err)
@@ -89,7 +89,7 @@ func getRoomsHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Println("データベースからのデータ読み取りに失敗しました:", err)
 			http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
-			return
+			return	
 		}
 		rooms = append(rooms, room)
 	}
