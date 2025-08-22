@@ -3,9 +3,8 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
-	"strings" // ★ 追加
 
+	"github.com/gin-gonic/gin" // ★ Ginをインポート
 	"github.com/shuto.sawaki/elmo-project/internal/ai"
 	"github.com/shuto.sawaki/elmo-project/internal/db"
 	"github.com/shuto.sawaki/elmo-project/internal/handlers"
@@ -24,51 +23,34 @@ func main() {
 		log.Fatalf("AIジェネレータの初期化に失敗しました: %v", err)
 	}
 
+	// 各ハンドラーを初期化
 	roomHandler := handlers.NewRoomHandler(database, aiGenerator)
 	userHandler := handlers.NewUserHandler(database)
 	participantHandler := handlers.NewParticipantHandler(database)
 
-	mux := http.NewServeMux()
+	// ★ Ginのルーターを初期化
+	// gin.Default()は、ロガーやリカバリーといった便利なミドルウェアが最初から組み込まれています。
+	router := gin.Default()
 
-	mux.HandleFunc("/rooms", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			roomHandler.GetRooms(w, r)
-		case http.MethodPost:
-			roomHandler.CreateRoom(w, r)
-		default:
-			http.Error(w, "サポートされていないメソッドです", http.StatusMethodNotAllowed)
-		}
-	})
-	mux.HandleFunc("/rooms/", func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		// ★ strings.HasSuffixが使えるようになります
-		if strings.HasSuffix(path, "/start") {
-			roomHandler.StartRoom(w, r)
-		} else if strings.HasSuffix(path, "/conclusion") {
-			roomHandler.SaveConclusion(w, r)
-		} else if strings.HasSuffix(path, "/sorena") {
-			roomHandler.HandleSorena(w, r)
-		} else {
-			roomHandler.GetRoomByID(w, r)
-		}
-	})
+	// --- ルーティングの設定 ---
+	// GETとPOSTのようにHTTPメソッドごとに明確にルートを定義できます。
+	// これにより、ハンドラー内のswitch文が不要になります。
+	router.GET("/rooms", roomHandler.GetRooms)
+	router.POST("/rooms", roomHandler.CreateRoom)
 
-	mux.HandleFunc("/users", userHandler.CreateUser)
+	// URL内の可変部分を :id のようにコロンで指定できます。
+	// これを「URLパラメータ」と呼びます。
+	router.GET("/rooms/:id", roomHandler.GetRoomByID)
+	router.GET("/rooms/:id/start", roomHandler.StartRoom)
+	router.POST("/rooms/:id/conclusion", roomHandler.SaveConclusion)
+	router.POST("/rooms/:id/sorena", roomHandler.HandleSorena)
 
-	mux.HandleFunc("/participants", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			participantHandler.GetParticipants(w, r)
-		case http.MethodPost:
-			participantHandler.AddParticipant(w, r)
-		default:
-			http.Error(w, "サポートされていないメソッドです", http.StatusMethodNotAllowed)
-		}
-	})
+	router.POST("/users", userHandler.CreateUser)
+
+	router.GET("/participants", participantHandler.GetParticipants)
+	router.POST("/participants", participantHandler.AddParticipant)
 
 	log.Println("サーバー起動: http://localhost:8080")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
-		log.Fatal("サーバーの起動に失敗しました:", err)
-	}
+	// ★ Ginのルーターでサーバーを起動
+	router.Run(":8080")
 }
