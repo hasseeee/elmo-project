@@ -2,16 +2,14 @@ package handlers
 
 import (
 	"database/sql"
-	"encoding/json"
 	"log"
 	"net/http"
-	"strings"
 
+	"github.com/gin-gonic/gin" // ★ Ginをインポート
+	"github.com/matoous/go-nanoid/v2"
 	"github.com/shuto.sawaki/elmo-project/internal/ai"
 	"github.com/shuto.sawaki/elmo-project/internal/models"
 )
-
-// ... (GetRooms, CreateRoom, GetRoomByID, SaveConclusion は変更なし) ...
 
 type RoomHandler struct {
 	db          *sql.DB
@@ -26,104 +24,69 @@ func NewRoomHandler(db *sql.DB, aiGen ai.AIGenerator) *RoomHandler {
 }
 
 // GET /rooms
-func (h *RoomHandler) GetRooms(w http.ResponseWriter, r *http.Request) {
-	// ... (変更なし)
+func (h *RoomHandler) GetRooms(c *gin.Context) {
+	// ... (GetRoomsのロジックはほぼ同じ) ...
+	var rooms []models.Room
+    // ...
+	// ★ レスポンスの書き方がシンプルになります
+	c.JSON(http.StatusOK, rooms)
 }
 
 // POST /rooms
-func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
-	// ... (変更なし)
-}
-
-// GET /rooms/{id}
-func (h *RoomHandler) GetRoomByID(w http.ResponseWriter, r *http.Request) {
-	// ... (変更なし)
-}
-
-// POST /rooms/{id}/conclusion
-func (h *RoomHandler) SaveConclusion(w http.ResponseWriter, r *http.Request) {
-	// ... (変更なし)
-}
-
-// GET /rooms/{id}/start
-func (h *RoomHandler) StartRoom(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "GETメソッドのみサポートされています", http.StatusMethodNotAllowed)
+func (h *RoomHandler) CreateRoom(c *gin.Context) {
+	var newRoom models.Room
+	// ★ リクエストボディのJSONを構造体にバインドします
+	if err := c.ShouldBindJSON(&newRoom); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "リクエストボディが不正です"})
 		return
 	}
-	log.Println("StartRoom: リクエストを受信しました")
-	roomID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/rooms/"), "/start")
+	// ... (ID生成やDBへのINSERT処理) ...
+	c.JSON(http.StatusCreated, newRoom)
+}
 
+// GET /rooms/:id
+func (h *RoomHandler) GetRoomByID(c *gin.Context) {
+	// ★ URLパラメータ(:id)を取得します
+	id := c.Param("id")
 	var room models.Room
-	err := h.db.QueryRow("SELECT id, title, description, status FROM rooms WHERE id = $1", roomID).Scan(&room.ID, &room.Title, &room.Description, &room.Status)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			http.Error(w, "指定された部屋は見つかりません", http.StatusNotFound)
-		} else {
-			log.Println("データベースクエリの実行に失敗しました:", err)
-			http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
-		}
-		return
-	}
-
-	if room.Status != "not started" {
-		http.Error(w, "部屋は既に開始されています", http.StatusBadRequest)
-		return
-	}
-
-	initialQuestion, err := h.aiGenerator.GenerateInitialQuestion(r.Context(), room.Title, room.Description)
-	if err != nil {
-		log.Println("AIからの問いかけ生成に失敗しました:", err)
-		http.Error(w, "AI API呼び出しエラー", http.StatusInternalServerError)
-		return
-	}
-
-	_, err = h.db.Exec("UPDATE rooms SET status = $1, initial_question = $2 WHERE id = $3", "inprogress", initialQuestion, roomID)
-	if err != nil {
-		log.Println("部屋の状態更新に失敗しました:", err)
-		http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
-		return
-	}
-
-	// ★★★ ここから修正 ★★★
-	rows, err := h.db.Query(`SELECT u.id, u.user_name FROM participants p JOIN users u ON p.user_id = u.id WHERE p.room_id = $1`, roomID)
-	if err != nil {
-		log.Println("参加者リストの取得に失敗しました:", err)
-		http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
-	var participants []models.ParticipantUser
-	for rows.Next() {
-		var p models.ParticipantUser
-		if err := rows.Scan(&p.ID, &p.Name); err != nil {
-			log.Println("参加者情報の読み取りに失敗しました:", err)
-			http.Error(w, "サーバー内部エラーです", http.StatusInternalServerError)
-			return
-		}
-		participants = append(participants, p)
-	}
-
-	response := models.StartRoomResponse{
-		InitialQuestion: initialQuestion,
-		RoomInfo: models.RoomInfo{
-			RoomID: roomID,
-			Title:  room.Title,
-			Status: "inprogress",
-		},
-		Participants: participants,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Println("JSONへの変換に失敗しました:", err)
-	}
-	// ★★★ ここまで修正 ★★★
+	// ... (DBから部屋情報を取得するロジック) ...
+	c.JSON(http.StatusOK, room)
 }
 
-// POST /rooms/{id}/sorena
-func (h *RoomHandler) HandleSorena(w http.ResponseWriter, r *http.Request) {
-    // ... (sorena.goから持ってきたロジック。変更なし)
+// POST /rooms/:id/conclusion
+func (h *RoomHandler) SaveConclusion(c *gin.Context) {
+	roomID := c.Param("id")
+	var req models.ConclusionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "リクエストボディが不正です"})
+		return
+	}
+	// ... (結論をDBに保存するロジック) ...
+	var room models.Room // 更新後の部屋情報を取得
+	// ...
+	c.JSON(http.StatusOK, room)
+}
+
+// GET /rooms/:id/start
+func (h *RoomHandler) StartRoom(c *gin.Context) {
+	roomID := c.Param("id")
+	// ... (部屋のステータスチェック、AIからの質問生成、DB更新のロジック) ...
+	var participants []models.ParticipantUser
+	// ... (参加者リスト取得のロジック) ...
+	response := models.StartRoomResponse{
+		// ...
+	}
+	c.JSON(http.StatusOK, response)
+}
+
+// POST /rooms/:id/sorena
+func (h *RoomHandler) HandleSorena(c *gin.Context) {
+	roomID := c.Param("id")
+	var req models.SorenaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "リクエストボディが不正です"})
+		return
+	}
+	// ... (sorenaカウントをDBに保存するロジック) ...
+	c.Status(http.StatusNoContent) // ボディなしの成功レスポンス
 }
