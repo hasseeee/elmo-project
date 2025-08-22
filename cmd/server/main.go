@@ -41,7 +41,7 @@ func main() {
 	// URL内の可変部分を :id のようにコロンで指定できます。
 	// これを「URLパラメータ」と呼びます。
 	router.GET("/rooms/:id", roomHandler.GetRoomByID)
-	router.GET("/rooms/:id/start", roomHandler.StartRoom)
+	router.POST("/rooms/:id/start", roomHandler.StartRoom)
 	router.POST("/rooms/:id/conclusion", roomHandler.SaveConclusion)
 	router.POST("/rooms/:id/sorena", roomHandler.HandleSorena)
 
