@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"net/http"
 	"log"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/matoous/go-nanoid/v2"
@@ -288,4 +290,120 @@ func (h *RoomHandler) UpdateRoomStatus(c *gin.Context) {
 
 	// 成功時は 204 No Content を返す
 	c.Status(http.StatusNoContent)
+}
+
+// GET /rooms/:id/result
+func (h *RoomHandler) GetRoomResult(c *gin.Context) {
+	roomID := c.Param("id")
+	ctx := c.Request.Context()
+
+	var wg sync.WaitGroup
+	var roomInfo models.ResultRoomInfo
+	var sorenaSummary models.SorenaSummary
+	var chatLogs []models.LogEntry
+	var errRoom, errSorena, errLogs error
+
+	// 3つの異なるデータ取得を並行して実行し、高速化
+	wg.Add(3)
+
+	// Goroutine 1: 部屋情報を取得
+	go func() {
+		defer wg.Done()
+		var title string
+		err := h.db.QueryRowContext(ctx, "SELECT title FROM rooms WHERE id = $1", roomID).Scan(&title)
+		if err != nil {
+			errRoom = err
+			return
+		}
+		roomInfo = models.ResultRoomInfo{RoomID: roomID, Title: title}
+	}()
+
+	// Goroutine 2: 「それな」の集計
+	go func() {
+		defer wg.Done()
+		query := `
+            SELECT u.id, u.user_name, COUNT(sc.id) as count
+            FROM sorena_counts sc
+            JOIN users u ON sc.user_id = u.id
+            WHERE sc.room_id = $1
+            GROUP BY u.id, u.user_name
+            ORDER BY count DESC
+        `
+		rows, err := h.db.QueryContext(ctx, query, roomID)
+		if err != nil {
+			errSorena = err
+			return
+		}
+		defer rows.Close()
+
+		var participants []models.SorenaParticipant
+		totalCount := 0
+		for rows.Next() {
+			var p models.SorenaParticipant
+			if err := rows.Scan(&p.UserID, &p.UserName, &p.Count); err != nil {
+				errSorena = err
+				return
+			}
+			participants = append(participants, p)
+			totalCount += p.Count
+		}
+		sorenaSummary = models.SorenaSummary{
+			TotalCount:   totalCount,
+			Participants: participants,
+		}
+	}()
+
+	// Goroutine 3: チャットログを取得
+	go func() {
+		defer wg.Done()
+		query := `
+			SELECT id, user_id, content, is_summary, created_at
+			FROM chat_logs
+			WHERE room_id = $1
+			ORDER BY created_at ASC
+		`
+		rows, err := h.db.QueryContext(ctx, query, roomID)
+		if err != nil {
+			errLogs = err
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var log models.LogEntry
+			// データベースのuser_idがNULLの場合に対応するため、sql.NullStringを使用
+			var userID sql.NullString
+			if err := rows.Scan(&log.ID, &userID, &log.Content, &log.IsSummary, &log.CreatedAt); err != nil {
+				errLogs = err
+				return
+			}
+			if userID.Valid {
+				log.UserID = userID.String // NULLでなければ文字列をセット
+			}
+			chatLogs = append(chatLogs, log)
+		}
+	}()
+
+	// 全てのGoroutineの処理が終わるのを待つ
+	wg.Wait()
+
+	// エラーチェック
+	if errRoom != nil || errSorena != nil || errLogs != nil {
+		log.Printf("Error fetching room result: roomErr=%v, sorenaErr=%v, logErr=%v", errRoom, errSorena, errLogs)
+		if errors.Is(errRoom, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch room result data"})
+		return
+	}
+
+	// レスポンスを組み立て
+	response := models.RoomResultResponse{
+		RoomInfo:      roomInfo,
+		SorenaSummary: sorenaSummary,
+		ChatLogs:      chatLogs, // Assuming models.LogEntry matches the response structure
+	}
+
+	c.JSON(http.StatusOK, response)
 }
