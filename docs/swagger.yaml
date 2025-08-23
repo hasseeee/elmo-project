@@ -1,0 +1,582 @@
+basePath: /
+definitions:
+  models.ChatLog:
+    properties:
+      is_summary:
+        example: false
+        type: boolean
+      log_id:
+        example: 1
+        type: integer
+      message:
+        example: 良いアイデアですね
+        type: string
+      timestamp:
+        example: "2024-01-01T10:00:00Z"
+        type: string
+      user_id:
+        example: user123
+        type: string
+    type: object
+  models.ConclusionRequest:
+    properties:
+      conclusion:
+        example: 来週までにプロトタイプを完成させる
+        type: string
+    type: object
+  models.LogEntry:
+    properties:
+      content:
+        example: プロジェクトの進捗について話し合いました
+        type: string
+    type: object
+  models.ParticipantRequest:
+    properties:
+      room_id:
+        example: room123
+        type: string
+      user_id:
+        example: user123
+        type: string
+    type: object
+  models.ParticipantUser:
+    properties:
+      id:
+        example: user123
+        type: string
+      name:
+        example: 田中太郎
+        type: string
+    type: object
+  models.ParticipantsResponse:
+    properties:
+      room_id:
+        example: room123
+        type: string
+      users:
+        items:
+          $ref: '#/definitions/models.ParticipantUser'
+        type: array
+    type: object
+  models.ResultRoomInfo:
+    properties:
+      room_id:
+        example: room123
+        type: string
+      title:
+        example: 週次ミーティング
+        type: string
+    type: object
+  models.Room:
+    properties:
+      conclusion:
+        example: 来週までにプロトタイプを完成させる
+        type: string
+      description:
+        example: 今週の進捗確認と来週の計画
+        type: string
+      id:
+        example: abc123
+        type: string
+      initial_question:
+        example: 今日の議題について何か質問はありますか？
+        type: string
+      status:
+        example: inprogress
+        type: string
+      title:
+        example: 週次ミーティング
+        type: string
+    type: object
+  models.RoomInfo:
+    properties:
+      room_id:
+        example: room123
+        type: string
+      status:
+        example: inprogress
+        type: string
+      title:
+        example: 週次ミーティング
+        type: string
+    type: object
+  models.RoomResultResponse:
+    properties:
+      chat_logs:
+        items:
+          $ref: '#/definitions/models.ChatLog'
+        type: array
+      room_info:
+        $ref: '#/definitions/models.ResultRoomInfo'
+      sorena_summary:
+        $ref: '#/definitions/models.SorenaSummary'
+    type: object
+  models.SorenaParticipant:
+    properties:
+      count:
+        example: 5
+        type: integer
+      user_id:
+        example: user123
+        type: string
+      user_name:
+        example: 田中太郎
+        type: string
+    type: object
+  models.SorenaRequest:
+    properties:
+      count:
+        example: 1
+        type: integer
+      user_id:
+        example: user123
+        type: string
+    type: object
+  models.SorenaSummary:
+    properties:
+      participants:
+        items:
+          $ref: '#/definitions/models.SorenaParticipant'
+        type: array
+      total_count:
+        example: 15
+        type: integer
+    type: object
+  models.StartRoomResponse:
+    properties:
+      initial_question:
+        example: 今日の議題について何か質問はありますか？
+        type: string
+      participants:
+        items:
+          $ref: '#/definitions/models.ParticipantUser'
+        type: array
+      room_info:
+        $ref: '#/definitions/models.RoomInfo'
+    type: object
+  models.SummaryRequest:
+    properties:
+      logs:
+        items:
+          $ref: '#/definitions/models.LogEntry'
+        type: array
+    type: object
+  models.UpdateRoomStatusRequest:
+    properties:
+      status:
+        example: done
+        type: string
+    type: object
+  models.User:
+    properties:
+      id:
+        example: user123
+        type: string
+      user_name:
+        example: 田中太郎
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: 会議室管理システムのAPI
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Elmo Project API
+  version: "1.0"
+paths:
+  /participants:
+    get:
+      consumes:
+      - application/json
+      description: 指定された会議室の参加者一覧を取得します
+      parameters:
+      - description: 会議室ID
+        in: query
+        name: room_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ParticipantsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 参加者一覧を取得
+      tags:
+      - participants
+    post:
+      consumes:
+      - application/json
+      description: 指定された会議室に参加者を追加します
+      parameters:
+      - description: 参加者情報
+        in: body
+        name: participant
+        required: true
+        schema:
+          $ref: '#/definitions/models.ParticipantRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 参加者を追加
+      tags:
+      - participants
+  /rooms:
+    get:
+      consumes:
+      - application/json
+      description: 全ての会議室の一覧を取得します
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Room'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 会議室一覧を取得
+      tags:
+      - rooms
+    post:
+      consumes:
+      - application/json
+      description: 新しい会議室を作成します
+      parameters:
+      - description: 会議室情報
+        in: body
+        name: room
+        required: true
+        schema:
+          $ref: '#/definitions/models.Room'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Room'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 会議室を作成
+      tags:
+      - rooms
+  /rooms/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 指定されたIDの会議室の詳細情報を取得します
+      parameters:
+      - description: 会議室ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Room'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 会議室詳細を取得
+      tags:
+      - rooms
+  /rooms/{id}/conclusion:
+    post:
+      consumes:
+      - application/json
+      description: 指定された会議室の結論を保存します
+      parameters:
+      - description: 会議室ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 結論
+        in: body
+        name: conclusion
+        required: true
+        schema:
+          $ref: '#/definitions/models.ConclusionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 会議の結論を保存
+      tags:
+      - rooms
+  /rooms/{id}/result:
+    get:
+      consumes:
+      - application/json
+      description: 指定された会議室の結果情報（「それな」集計、チャットログ等）を取得します
+      parameters:
+      - description: 会議室ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.RoomResultResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 会議結果を取得
+      tags:
+      - rooms
+  /rooms/{id}/sorena:
+    post:
+      consumes:
+      - application/json
+      description: 指定された会議室でユーザーの「それな」カウントを更新します
+      parameters:
+      - description: 会議室ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 「それな」情報
+        in: body
+        name: sorena
+        required: true
+        schema:
+          $ref: '#/definitions/models.SorenaRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 「それな」カウントを処理
+      tags:
+      - rooms
+  /rooms/{id}/start:
+    post:
+      consumes:
+      - application/json
+      description: 指定された会議室を開始し、AIが初期質問を生成します
+      parameters:
+      - description: 会議室ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.StartRoomResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 会議室を開始
+      tags:
+      - rooms
+  /rooms/{id}/status:
+    put:
+      consumes:
+      - application/json
+      description: 指定された会議室のステータスを更新します
+      parameters:
+      - description: 会議室ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ステータス情報
+        in: body
+        name: status
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateRoomStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 会議室のステータスを更新
+      tags:
+      - rooms
+  /rooms/{id}/summary:
+    post:
+      consumes:
+      - application/json
+      description: AIを使用して会議ログの要約を作成し、データベースに保存します
+      parameters:
+      - description: 会議室ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 要約対象のログ
+        in: body
+        name: summary
+        required: true
+        schema:
+          $ref: '#/definitions/models.SummaryRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 会議ログの要約を作成
+      tags:
+      - rooms
+  /users:
+    post:
+      consumes:
+      - application/json
+      description: 新しいユーザーを作成します
+      parameters:
+      - description: ユーザー情報
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.User'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.User'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: ユーザーを作成
+      tags:
+      - users
+securityDefinitions:
+  BasicAuth:
+    type: basic
+swagger: "2.0"

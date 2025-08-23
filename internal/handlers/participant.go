@@ -16,7 +16,17 @@ func NewParticipantHandler(db *sql.DB) *ParticipantHandler {
 	return &ParticipantHandler{db: db}
 }
 
-// GET /participants
+// GetParticipants godoc
+// @Summary      参加者一覧を取得
+// @Description  指定された会議室の参加者一覧を取得します
+// @Tags         participants
+// @Accept       json
+// @Produce      json
+// @Param        room_id  query     string  true  "会議室ID"
+// @Success      200      {object}  models.ParticipantsResponse
+// @Failure      400      {object}  map[string]interface{}
+// @Failure      500      {object}  map[string]interface{}
+// @Router       /participants [get]
 func (h *ParticipantHandler) GetParticipants(c *gin.Context) {
 	roomID := c.Query("room_id")
 	if roomID == "" {
@@ -48,7 +58,17 @@ func (h *ParticipantHandler) GetParticipants(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// POST /participants
+// AddParticipant godoc
+// @Summary      参加者を追加
+// @Description  指定された会議室に参加者を追加します
+// @Tags         participants
+// @Accept       json
+// @Produce      json
+// @Param        participant  body      models.ParticipantRequest  true  "参加者情報"
+// @Success      201          "Created"
+// @Failure      400          {object}  map[string]interface{}
+// @Failure      500          {object}  map[string]interface{}
+// @Router       /participants [post]
 func (h *ParticipantHandler) AddParticipant(c *gin.Context) {
 	var req models.ParticipantRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
