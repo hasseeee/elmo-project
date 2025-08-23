@@ -12,7 +12,3 @@ type Room struct {
 type UpdateRoomStatusRequest struct {
 	Status string `json:"status"`
 }
-
-type ConclusionRequest struct {
-	Conclusion string `json:"conclusion"`
-}
