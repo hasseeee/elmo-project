@@ -253,7 +253,7 @@ func (h *RoomHandler) CreateSummary(c *gin.Context) {
 	}
 
 	// 5. 成功したが返すコンテンツはない、というステータスを返す
-	c.Status(http.StatusNoContent)
+	c.JSON(http.StatusOK, gin.H{"summary": summary})
 }
 
 // PUT /rooms/:id/status
