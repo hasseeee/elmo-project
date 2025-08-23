@@ -247,28 +247,30 @@ func (h *RoomHandler) CreateSummary(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// PUT /rooms/{room_id}/status
-func (h *RoomHandler) UpdateRoomStatus(w http.ResponseWriter, r *http.Request) {
-	roomID := chi.URLParam(r, "room_id")
+// PUT /rooms/:id/status
+func (h *RoomHandler) UpdateRoomStatus(c *gin.Context) {
+	// URLからidを取得
+	roomID := c.Param("id")
 
 	var req models.UpdateRoomStatusRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	// リクエストボディのJSONを構造体にバインド（割り当て）
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	// バリデーション：statusが"done"であることのみを許可
 	if req.Status != "done" {
-		http.Error(w, `status must be "done"`, http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": `status must be "done"`})
 		return
 	}
 
 	// データベースを更新するSQL
 	sqlStatement := `UPDATE rooms SET status = $1 WHERE id = $2`
-	result, err := h.db.ExecContext(r.Context(), sqlStatement, req.Status, roomID)
+	result, err := h.db.ExecContext(c.Request.Context(), sqlStatement, req.Status, roomID)
 	if err != nil {
 		log.Printf("failed to update room status: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 
@@ -276,14 +278,14 @@ func (h *RoomHandler) UpdateRoomStatus(w http.ResponseWriter, r *http.Request) {
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		log.Printf("failed to get rows affected: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 	if rowsAffected == 0 {
-		http.Error(w, "room not found", http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
 		return
 	}
 
 	// 成功時は 204 No Content を返す
-	w.WriteHeader(http.StatusNoContent)
+	c.Status(http.StatusNoContent)
 }
