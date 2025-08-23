@@ -1,0 +1,66 @@
+000001_create_users_table.up.sql
+SQL
+
+CREATE TABLE IF NOT EXISTS `users` (
+    `id` VARCHAR(10) NOT NULL PRIMARY KEY,
+    `user_name` VARCHAR(20) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+000001_create_users_table.down.sql
+SQL
+
+DROP TABLE IF EXISTS `users`;
+
+000002_create_rooms_table.up.sql
+SQL
+
+CREATE TYPE room_status AS ENUM ('not started', 'inprogress', 'done');
+CREATE TABLE IF NOT EXISTS `rooms` (
+    `id` VARCHAR(6) NOT NULL PRIMARY KEY,
+    `title` VARCHAR(255) NOT NULL,
+    `description` TEXT,
+    `conclusion` TEXT,
+    `status` room_status NOT NULL DEFAULT 'pending',
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `sorena_count` INT DEFAULT 0 NOT NULL CHECK (sorena_count >= 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+000002_create_rooms_table.down.sql
+SQL
+
+DROP TABLE IF EXISTS `rooms`;
+
+000003_create_participants_table.up.sql
+SQL
+
+CREATE TABLE IF NOT EXISTS `participants` (
+    `id` VARCHAR(16) NOT NULL,
+    `room_id` VARCHAR(6) NOT NULL,
+    `user_id` VARCHAR(10) NOT NULL,
+    PRIMARY KEY (`room_id`, `user_id`),
+    FOREIGN KEY (`room_id`) REFERENCES `rooms`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+000003_create_participants_table.down.sql
+SQL
+
+DROP TABLE IF EXISTS `participants`;
+
+000004_create_logs_table.up.sql
+SQL
+
+CREATE TABLE IF NOT EXISTS `chatlog` (
+    `id` INT  VARCHAR(21) NOT NULL,
+    `room_id` VARCHAR(6) NOT NULL,
+    `user_id` VARCHAR(10) NOT NULL,
+    `message` TEXT NOT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`room_id`, `user_id`),
+    FOREIGN KEY (`room_id`) REFERENCES `rooms`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+000005_create_sorenas_table.down.sql
+SQL
+
+DROP TABLE IF EXISTS `sorenas`;
