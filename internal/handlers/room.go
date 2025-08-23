@@ -197,3 +197,51 @@ func (h *RoomHandler) HandleSorena(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+// POST /rooms/:id/summary
+func (h *RoomHandler) CreateSummary(c *gin.Context) {
+	// 1. URLから部屋のIDを取得
+	roomID := c.Param("id")
+
+	// 2. リクエストのJSONデータをGoの構造体に変換
+	var req models.SummaryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "リクエストボディが不正です"})
+		return
+	}
+
+	// ログが空の場合は何もしない
+	if len(req.Logs) == 0 {
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	// 3. AIに要約を依頼
+	summary, err := h.aiGenerator.SummarizeLogs(c.Request.Context(), req.Logs)
+	if err != nil {
+		// ここではエラーをログに出力するだけにして、クライアントにはエラーを返さないことも考えられます。
+		// 定期実行のバックグラウンド処理的な側面が強いため。今回はサーバーエラーとして返します。
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "AIによる要約に失敗しました"})
+		return
+	}
+
+	// 4. 要約結果をDBに保存
+	logID, err := gonanoid.New() // 要約ログの新しいIDを生成
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "IDの生成に失敗しました"})
+		return
+	}
+
+	sqlStatement := `
+		INSERT INTO chat_logs (id, room_id, message, is_summary)
+		VALUES ($1, $2, $3, TRUE)
+	`
+	_, err = h.db.Exec(sqlStatement, logID, roomID, summary)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "データベースへの保存に失敗しました"})
+		return
+	}
+
+	// 5. 成功したが返すコンテンツはない、というステータスを返す
+	c.Status(http.StatusNoContent)
+}
