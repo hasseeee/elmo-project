@@ -25,15 +25,7 @@ func NewRoomHandler(db *sql.DB, aiGen ai.AIGenerator) *RoomHandler {
 	}
 }
 
-// GetRooms godoc
-// @Summary      会議室一覧を取得
-// @Description  全ての会議室の一覧を取得します
-// @Tags         rooms
-// @Accept       json
-// @Produce      json
-// @Success      200  {array}   models.Room
-// @Failure      500  {object}  map[string]interface{}
-// @Router       /rooms [get]
+// GET /rooms
 func (h *RoomHandler) GetRooms(c *gin.Context) {
 	rows, err := h.db.Query("SELECT id, title, description FROM rooms ORDER BY id ASC")
 	if err != nil {
@@ -54,17 +46,7 @@ func (h *RoomHandler) GetRooms(c *gin.Context) {
 	c.JSON(http.StatusOK, rooms)
 }
 
-// CreateRoom godoc
-// @Summary      会議室を作成
-// @Description  新しい会議室を作成します
-// @Tags         rooms
-// @Accept       json
-// @Produce      json
-// @Param        room  body      models.Room  true  "会議室情報"
-// @Success      201   {object}  models.Room
-// @Failure      400   {object}  map[string]interface{}
-// @Failure      500   {object}  map[string]interface{}
-// @Router       /rooms [post]
+// POST /rooms
 func (h *RoomHandler) CreateRoom(c *gin.Context) {
 	var newRoom models.Room
 	if err := c.ShouldBindJSON(&newRoom); err != nil {
@@ -93,17 +75,7 @@ func (h *RoomHandler) CreateRoom(c *gin.Context) {
 	c.JSON(http.StatusCreated, newRoom)
 }
 
-// GetRoomByID godoc
-// @Summary      会議室詳細を取得
-// @Description  指定されたIDの会議室の詳細情報を取得します
-// @Tags         rooms
-// @Accept       json
-// @Produce      json
-// @Param        id   path      string  true  "会議室ID"
-// @Success      200  {object}  models.Room
-// @Failure      404  {object}  map[string]interface{}
-// @Failure      500  {object}  map[string]interface{}
-// @Router       /rooms/{id} [get]
+// GET /rooms/:id
 func (h *RoomHandler) GetRoomByID(c *gin.Context) {
 	id := c.Param("id")
 	var room models.Room
@@ -120,18 +92,7 @@ func (h *RoomHandler) GetRoomByID(c *gin.Context) {
 	c.JSON(http.StatusOK, room)
 }
 
-// SaveConclusion godoc
-// @Summary      会議の結論を保存
-// @Description  指定された会議室の結論を保存します
-// @Tags         rooms
-// @Accept       json
-// @Produce      json
-// @Param        id   path      string  true  "会議室ID"
-// @Param        conclusion  body      models.ConclusionRequest  true  "結論"
-// @Success      200  {object}  map[string]interface{}
-// @Failure      400  {object}  map[string]interface{}
-// @Failure      500  {object}  map[string]interface{}
-// @Router       /rooms/{id}/conclusion [post]
+// POST /rooms/:id/conclusion
 func (h *RoomHandler) SaveConclusion(c *gin.Context) {
 	roomID := c.Param("id")
 	var req models.ConclusionRequest
@@ -139,33 +100,26 @@ func (h *RoomHandler) SaveConclusion(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "リクエストボディが不正です"})
 		return
 	}
-
 	if req.Conclusion == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "結論は必須です"})
 		return
 	}
-
-	sqlStatement := `UPDATE rooms SET conclusion = $1 WHERE id = $2`
-	_, err := h.db.Exec(sqlStatement, req.Conclusion, roomID)
+	_, err := h.db.Exec("UPDATE rooms SET conclusion = $1, status = 'concluded' WHERE id = $2", req.Conclusion, roomID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "結論の保存に失敗しました"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "サーバー内部エラーです"})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "結論が保存されました"})
+	var room models.Room
+	err = h.db.QueryRow("SELECT id, title, description, conclusion, status FROM rooms WHERE id = $1", roomID).
+		Scan(&room.ID, &room.Title, &room.Description, &room.Conclusion, &room.Status)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "サーバー内部エラーです"})
+		return
+	}
+	c.JSON(http.StatusOK, room)
 }
 
-// StartRoom godoc
-// @Summary      会議室を開始
-// @Description  指定された会議室を開始し、AIが初期質問を生成します
-// @Tags         rooms
-// @Accept       json
-// @Produce      json
-// @Param        id   path      string  true  "会議室ID"
-// @Success      200  {object}  models.StartRoomResponse
-// @Failure      400  {object}  map[string]interface{}
-// @Failure      500  {object}  map[string]interface{}
-// @Router       /rooms/{id}/start [post]
+// GET /rooms/:id/start
 func (h *RoomHandler) StartRoom(c *gin.Context) {
 	roomID := c.Param("id")
 
@@ -222,18 +176,7 @@ func (h *RoomHandler) StartRoom(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// HandleSorena godoc
-// @Summary      「それな」カウントを処理
-// @Description  指定された会議室でユーザーの「それな」カウントを更新します
-// @Tags         rooms
-// @Accept       json
-// @Produce      json
-// @Param        id   path      string  true  "会議室ID"
-// @Param        sorena  body      models.SorenaRequest  true  "「それな」情報"
-// @Success      204  "No Content"
-// @Failure      400  {object}  map[string]interface{}
-// @Failure      500  {object}  map[string]interface{}
-// @Router       /rooms/{id}/sorena [post]
+// POST /rooms/:id/sorena
 func (h *RoomHandler) HandleSorena(c *gin.Context) {
 	roomID := c.Param("id")
 	var req models.SorenaRequest
@@ -258,18 +201,7 @@ func (h *RoomHandler) HandleSorena(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// CreateSummary godoc
-// @Summary      会議ログの要約を作成
-// @Description  AIを使用して会議ログの要約を作成し、データベースに保存します
-// @Tags         rooms
-// @Accept       json
-// @Produce      json
-// @Param        id   path      string  true  "会議室ID"
-// @Param        summary  body      models.SummaryRequest  true  "要約対象のログ"
-// @Success      204  "No Content"
-// @Failure      400  {object}  map[string]interface{}
-// @Failure      500  {object}  map[string]interface{}
-// @Router       /rooms/{id}/summary [post]
+// POST /rooms/:id/summary
 func (h *RoomHandler) CreateSummary(c *gin.Context) {
 	// 1. URLから部屋のIDを取得
 	roomID := c.Param("id")
@@ -317,19 +249,7 @@ func (h *RoomHandler) CreateSummary(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// UpdateRoomStatus godoc
-// @Summary      会議室のステータスを更新
-// @Description  指定された会議室のステータスを更新します
-// @Tags         rooms
-// @Accept       json
-// @Produce      json
-// @Param        id   path      string  true  "会議室ID"
-// @Param        status  body      models.UpdateRoomStatusRequest  true  "ステータス情報"
-// @Success      204  "No Content"
-// @Failure      400  {object}  map[string]interface{}
-// @Failure      404  {object}  map[string]interface{}
-// @Failure      500  {object}  map[string]interface{}
-// @Router       /rooms/{id}/status [put]
+// PUT /rooms/:id/status
 func (h *RoomHandler) UpdateRoomStatus(c *gin.Context) {
 	// URLからidを取得
 	roomID := c.Param("id")
@@ -372,17 +292,7 @@ func (h *RoomHandler) UpdateRoomStatus(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// GetRoomResult godoc
-// @Summary      会議結果を取得
-// @Description  指定された会議室の結果情報（「それな」集計、チャットログ等）を取得します
-// @Tags         rooms
-// @Accept       json
-// @Produce      json
-// @Param        id   path      string  true  "会議室ID"
-// @Success      200  {object}  models.RoomResultResponse
-// @Failure      404  {object}  map[string]interface{}
-// @Failure      500  {object}  map[string]interface{}
-// @Router       /rooms/{id}/result [get]
+// GET /rooms/:id/result
 func (h *RoomHandler) GetRoomResult(c *gin.Context) {
 	roomID := c.Param("id")
 	ctx := c.Request.Context()
@@ -445,7 +355,7 @@ func (h *RoomHandler) GetRoomResult(c *gin.Context) {
 	go func() {
 		defer wg.Done()
 		query := `
-			SELECT id, user_id, message, is_summary, created_at
+			SELECT id, user_id, content, is_summary, created_at
 			FROM chat_logs
 			WHERE room_id = $1
 			ORDER BY created_at ASC`
@@ -460,7 +370,7 @@ func (h *RoomHandler) GetRoomResult(c *gin.Context) {
 			var log models.ChatLog // ★ LogEntry から ChatLog に変更
 			var userID sql.NullString
 			// ★ ScanするフィールドをChatLogのフィールド名に合わせる
-			if err := rows.Scan(&log.LogID, &userID, &log.Message, &log.IsSummary, &log.Timestamp); err != nil {
+			if err := rows.Scan(&log.ID, &userID, &log.Message, &log.IsSummary, &log.Timestamp); err != nil {
 				errLogs = err
 				return
 			}
