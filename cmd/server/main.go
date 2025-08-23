@@ -44,6 +44,7 @@ func main() {
 	router.POST("/rooms/:id/start", roomHandler.StartRoom)
 	router.POST("/rooms/:id/conclusion", roomHandler.SaveConclusion)
 	router.POST("/rooms/:id/sorena", roomHandler.HandleSorena)
+	router.POST("/rooms/:id/summary", roomHandler.CreateSummary)
 
 	router.POST("/users", userHandler.CreateUser)
 
