@@ -3,11 +3,18 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin" // ★ Ginをインポート
 	"github.com/shuto.sawaki/elmo-project/internal/ai"
 	"github.com/shuto.sawaki/elmo-project/internal/db"
 	"github.com/shuto.sawaki/elmo-project/internal/handlers"
+	
+	// Swagger関連のインポート
+	_ "github.com/shuto.sawaki/elmo-project/docs"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
@@ -32,6 +39,18 @@ func main() {
 	// gin.Default()は、ロガーやリカバリーといった便利なミドルウェアが最初から組み込まれています。
 	router := gin.Default()
 
+	// Swagger UIのルートを追加
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// ヘルスチェックエンドポイント
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "healthy",
+			"timestamp": time.Now().Format(time.RFC3339),
+			"version": "1.0.0",
+		})
+	})
+
 	// --- ルーティングの設定 ---
 	// GETとPOSTのようにHTTPメソッドごとに明確にルートを定義できます。
 	// これにより、ハンドラー内のswitch文が不要になります。
@@ -54,6 +73,8 @@ func main() {
 	router.POST("/participants", participantHandler.AddParticipant)
 
 	log.Println("サーバー起動: http://localhost:8080")
+	log.Println("Swagger UI: http://localhost:8080/swagger/index.html")
+	log.Println("ヘルスチェック: http://localhost:8080/health")
 	// ★ Ginのルーターでサーバーを起動
 	router.Run(":8080")
 }
