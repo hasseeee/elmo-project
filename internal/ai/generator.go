@@ -2,11 +2,13 @@ package ai
 
 import (
 	"context"
-	"github.com/shuto.sawaki/elmo-project/internal/models"
+	"github.com/shuto.sawaki/elmo-project/internal/models" // ★ modelsをインポート
 )
 
-// AIGenerator は、最初の問いかけを生成する機能のインターフェース（役割）を定義します。
+// AIGenerator は、AIが実行する全ての機能のインターフェースを定義します。
 type AIGenerator interface {
+	// ★ GenerateInitialQuestion を再度追加
 	GenerateInitialQuestion(ctx context.Context, title, description string) (string, error)
+	// ★ SummarizeLogs の引数を []models.LogEntry に統一
 	SummarizeLogs(ctx context.Context, logs []models.LogEntry) (string, error)
 }
