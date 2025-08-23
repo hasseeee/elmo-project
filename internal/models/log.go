@@ -1,7 +1,11 @@
 package models
 
-// LogEntry は、会議のログ一件を表す構造体です。
+import "time"
+
 type LogEntry struct {
-	Content string
-	// 他にもタイムスタンプなどの情報が必要であれば、ここに追加します。
+	ID        int       `json:"id"`
+	UserID    string    `json:"user_id"`
+	Content   string    `json:"content"`
+	IsSummary bool      `json:"is_summary"`
+	CreatedAt time.Time `json:"created_at"`
 }

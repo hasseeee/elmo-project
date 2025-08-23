@@ -54,7 +54,6 @@ func (g *GeminiAIGenerator) GenerateInitialQuestion(ctx context.Context, title, 
 	return "", fmt.Errorf("unexpected response format from gemini api")
 }
 
-// SummarizeLogs は、与えられたログを要約します。
 func (g *GeminiAIGenerator) SummarizeLogs(ctx context.Context, logs []models.LogEntry) (string, error) {
 	var logBuilder strings.Builder
 	for _, entry := range logs {

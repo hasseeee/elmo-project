@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"log"
 	"sync"
-	"time"
 	"errors"
 
 	"github.com/gin-gonic/gin"
@@ -301,7 +300,7 @@ func (h *RoomHandler) GetRoomResult(c *gin.Context) {
 	var wg sync.WaitGroup
 	var roomInfo models.ResultRoomInfo
 	var sorenaSummary models.SorenaSummary
-	var chatLogs []models.ChatLog // ★ LogEntry から ChatLog に変更
+	var chatLogs []models.LogEntry // ★ ChatLog から LogEntry に変更
 	var errRoom, errSorena, errLogs error
 
 	wg.Add(3)
@@ -368,15 +367,15 @@ func (h *RoomHandler) GetRoomResult(c *gin.Context) {
 		defer rows.Close()
 
 		for rows.Next() {
-			var log models.ChatLog // ★ LogEntry から ChatLog に変更
+			var log models.LogEntry // ★ ChatLog から LogEntry に変更
 			var userID sql.NullString
-			// ★ ScanするフィールドをChatLogのフィールド名に合わせる
-			if err := rows.Scan(&log.ID, &userID, &log.Message, &log.IsSummary, &log.Timestamp); err != nil {
+			// ★ ScanするフィールドをLogEntryのフィールド名に合わせる
+			if err := rows.Scan(&log.ID, &userID, &log.Content, &log.IsSummary, &log.CreatedAt); err != nil {
 				errLogs = err
 				return
 			}
 			if userID.Valid {
-				log.UserID = &userID.String
+				log.UserID = userID.String
 			}
 			chatLogs = append(chatLogs, log)
 		}
@@ -393,11 +392,24 @@ func (h *RoomHandler) GetRoomResult(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch room result data"})
 		return
 	}
+    
+    // models.ChatLogとmodels.LogEntryの変換を行う
+    responseChatLogs := make([]models.ChatLog, len(chatLogs))
+    for i, logEntry := range chatLogs {
+        responseChatLogs[i] = models.ChatLog{
+            LogID:     logEntry.ID,
+            UserID:    &logEntry.UserID,
+            Message:   logEntry.Content,
+            IsSummary: logEntry.IsSummary,
+            Timestamp: logEntry.CreatedAt,
+        }
+    }
+
 
 	response := models.RoomResultResponse{
 		RoomInfo:      roomInfo,
 		SorenaSummary: sorenaSummary,
-		ChatLogs:      chatLogs,
+		ChatLogs:      responseChatLogs, // ★ 変換後のスライスを使用
 	}
 
 	c.JSON(http.StatusOK, response)
