@@ -60,21 +60,26 @@ func main() {
 	// URL内の可変部分を :id のようにコロンで指定できます。
 	// これを「URLパラメータ」と呼びます。
 	router.GET("/rooms/:id", roomHandler.GetRoomByID)
-	router.POST("/rooms/:id/start", roomHandler.StartRoom)
+	router.GET("/rooms/:id/start", roomHandler.StartRoom)
 	router.PUT("/rooms/:id/status", roomHandler.UpdateRoomStatus)
 	router.GET("/rooms/:id/result", roomHandler.GetRoomResult)
 	router.POST("/rooms/:id/conclusion", roomHandler.SaveConclusion)
 	router.POST("/rooms/:id/sorena", roomHandler.HandleSorena)
-	router.POST("/rooms/:id/summary", roomHandler.CreateSummary)
+	router.GET("/rooms/:id/summary", roomHandler.CreateSummary)
+	router.GET("/rooms/:id/open", roomHandler.OpenRoom)
 
 	router.POST("/users", userHandler.CreateUser)
 
 	router.GET("/participants", participantHandler.GetParticipants)
 	router.POST("/participants", participantHandler.AddParticipant)
 
-	log.Println("サーバー起動: http://localhost:8080")
-	log.Println("Swagger UI: http://localhost:8080/swagger/index.html")
-	log.Println("ヘルスチェック: http://localhost:8080/health")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("サーバー起動: http://localhost:%s", port)
+	log.Printf("Swagger UI: http://localhost:%s/swagger/index.html", port)
+	log.Printf("ヘルスチェック: http://localhost:%s/health", port)
 	// ★ Ginのルーターでサーバーを起動
-	router.Run(":8080")
+	router.Run(":" + port)
 }
