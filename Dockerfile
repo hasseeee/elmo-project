@@ -12,8 +12,8 @@ RUN go mod download
 # Copy the source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/server/main.go
+# Update dependencies and build the application
+RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/server/main.go
 
 # Final stage
 FROM --platform=linux/amd64 alpine:latest
