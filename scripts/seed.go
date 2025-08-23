@@ -81,7 +81,13 @@ func main() {
 	}
 
 	// データベースに接続
-	connStr := fmt.Sprintf("user=postgres password=%s dbname=elmo-db sslmode=disable", password)
+	host := getEnvOrDefault("DB_HOST", "localhost")
+	port := getEnvOrDefault("DB_PORT", "5432")
+	user := getEnvOrDefault("DB_USER", "postgres")
+	dbname := getEnvOrDefault("DB_NAME", "elmo-db")
+
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		host, port, user, password, dbname)
 	db, err := sql.Open("pgx", connStr)
 	if err != nil {
 		log.Fatal("データベースへの接続に失敗しました:", err)
@@ -112,6 +118,13 @@ func clearTables(db *sql.DB) {
 
 func getRandomElement(slice []string) string {
 	return slice[rand.Intn(len(slice))]
+}
+
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 func insertRandomData(db *sql.DB, count int) {
