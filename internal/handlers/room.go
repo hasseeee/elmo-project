@@ -2,13 +2,13 @@ package handlers
 
 import (
 	"database/sql"
-	"net/http"
-	"log"
-	"sync"
 	"errors"
+	"log"
+	"net/http"
+	"sync"
 
 	"github.com/gin-gonic/gin"
-	"github.com/matoous/go-nanoid/v2"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/shuto.sawaki/elmo-project/internal/ai"
 	"github.com/shuto.sawaki/elmo-project/internal/models"
 )
@@ -80,7 +80,7 @@ func (h *RoomHandler) GetRoomByID(c *gin.Context) {
 	id := c.Param("id")
 	var room models.Room
 	sqlStatement := `SELECT id, title, description, conclusion, status, initial_question FROM rooms WHERE id = $1`
-	err := h.db.QueryRow(sqlStatement, id).Scan(&room.ID, &room.Title, &room.Description, &room.Conclusion, &room.Status, &room.InitialQuestion)
+	err := h.db.QueryRow(sqlStatement, id).Scan(&room.ID, &room.Title, &room.Description, &room.Conclusion, &room.Status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "指定された部屋は見つかりません"})
@@ -117,7 +117,7 @@ func (h *RoomHandler) SaveConclusion(c *gin.Context) {
 	// 更新後の部屋情報を取得して返す
 	var room models.Room
 	err = h.db.QueryRow("SELECT id, title, description, conclusion, status, initial_question FROM rooms WHERE id = $1", roomID).
-		Scan(&room.ID, &room.Title, &room.Description, &room.Conclusion, &room.Status, &room.InitialQuestion)
+		Scan(&room.ID, &room.Title, &room.Description, &room.Conclusion, &room.Status)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新後の部屋情報の取得に失敗しました"})
 		return
