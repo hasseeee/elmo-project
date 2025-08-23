@@ -95,30 +95,36 @@ func (h *RoomHandler) GetRoomByID(c *gin.Context) {
 // POST /rooms/:id/conclusion
 func (h *RoomHandler) SaveConclusion(c *gin.Context) {
 	roomID := c.Param("id")
+	
 	var req models.ConclusionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "リクエストボディが不正です"})
 		return
 	}
+
 	if req.Conclusion == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "結論は必須です"})
 		return
 	}
+
+	// データベースを更新し、ステータスを'concluded'（結論が出た）に変更
 	_, err := h.db.Exec("UPDATE rooms SET conclusion = $1, status = 'concluded' WHERE id = $2", req.Conclusion, roomID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "サーバー内部エラーです"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "データベースの更新に失敗しました"})
 		return
 	}
+
+	// 更新後の部屋情報を取得して返す
 	var room models.Room
-	err = h.db.QueryRow("SELECT id, title, description, conclusion, status FROM rooms WHERE id = $1", roomID).
-		Scan(&room.ID, &room.Title, &room.Description, &room.Conclusion, &room.Status)
+	err = h.db.QueryRow("SELECT id, title, description, conclusion, status, initial_question FROM rooms WHERE id = $1", roomID).
+		Scan(&room.ID, &room.Title, &room.Description, &room.Conclusion, &room.Status, &room.InitialQuestion)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "サーバー内部エラーです"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新後の部屋情報の取得に失敗しました"})
 		return
 	}
+	
 	c.JSON(http.StatusOK, room)
 }
-
 // GET /rooms/:id/start
 func (h *RoomHandler) StartRoom(c *gin.Context) {
 	roomID := c.Param("id")
