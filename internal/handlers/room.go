@@ -6,6 +6,7 @@ import (
 	"log"
 	"sync"
 	"time"
+	"errors"
 
 	"github.com/gin-gonic/gin"
 	"github.com/matoous/go-nanoid/v2"
@@ -300,10 +301,9 @@ func (h *RoomHandler) GetRoomResult(c *gin.Context) {
 	var wg sync.WaitGroup
 	var roomInfo models.ResultRoomInfo
 	var sorenaSummary models.SorenaSummary
-	var chatLogs []models.LogEntry
+	var chatLogs []models.ChatLog // ★ LogEntry から ChatLog に変更
 	var errRoom, errSorena, errLogs error
 
-	// 3つの異なるデータ取得を並行して実行し、高速化
 	wg.Add(3)
 
 	// Goroutine 1: 部屋情報を取得
@@ -327,8 +327,7 @@ func (h *RoomHandler) GetRoomResult(c *gin.Context) {
             JOIN users u ON sc.user_id = u.id
             WHERE sc.room_id = $1
             GROUP BY u.id, u.user_name
-            ORDER BY count DESC
-        `
+            ORDER BY count DESC`
 		rows, err := h.db.QueryContext(ctx, query, roomID)
 		if err != nil {
 			errSorena = err
@@ -360,8 +359,7 @@ func (h *RoomHandler) GetRoomResult(c *gin.Context) {
 			SELECT id, user_id, content, is_summary, created_at
 			FROM chat_logs
 			WHERE room_id = $1
-			ORDER BY created_at ASC
-		`
+			ORDER BY created_at ASC`
 		rows, err := h.db.QueryContext(ctx, query, roomID)
 		if err != nil {
 			errLogs = err
@@ -370,24 +368,22 @@ func (h *RoomHandler) GetRoomResult(c *gin.Context) {
 		defer rows.Close()
 
 		for rows.Next() {
-			var log models.LogEntry
-			// データベースのuser_idがNULLの場合に対応するため、sql.NullStringを使用
+			var log models.ChatLog // ★ LogEntry から ChatLog に変更
 			var userID sql.NullString
-			if err := rows.Scan(&log.ID, &userID, &log.Content, &log.IsSummary, &log.CreatedAt); err != nil {
+			// ★ ScanするフィールドをChatLogのフィールド名に合わせる
+			if err := rows.Scan(&log.ID, &userID, &log.Message, &log.IsSummary, &log.Timestamp); err != nil {
 				errLogs = err
 				return
 			}
 			if userID.Valid {
-				log.UserID = userID.String // NULLでなければ文字列をセット
+				log.UserID = &userID.String
 			}
 			chatLogs = append(chatLogs, log)
 		}
 	}()
 
-	// 全てのGoroutineの処理が終わるのを待つ
 	wg.Wait()
 
-	// エラーチェック
 	if errRoom != nil || errSorena != nil || errLogs != nil {
 		log.Printf("Error fetching room result: roomErr=%v, sorenaErr=%v, logErr=%v", errRoom, errSorena, errLogs)
 		if errors.Is(errRoom, sql.ErrNoRows) {
@@ -398,11 +394,10 @@ func (h *RoomHandler) GetRoomResult(c *gin.Context) {
 		return
 	}
 
-	// レスポンスを組み立て
 	response := models.RoomResultResponse{
 		RoomInfo:      roomInfo,
 		SorenaSummary: sorenaSummary,
-		ChatLogs:      chatLogs, // Assuming models.LogEntry matches the response structure
+		ChatLogs:      chatLogs,
 	}
 
 	c.JSON(http.StatusOK, response)
