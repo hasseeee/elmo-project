@@ -43,6 +43,7 @@ func main() {
 	router.GET("/rooms/:id", roomHandler.GetRoomByID)
 	router.POST("/rooms/:id/start", roomHandler.StartRoom)
 	router.PUT("/rooms/:id/status", roomHandler.UpdateRoomStatus)
+	router.GET("/rooms/:id/result", roomHandler.GetRoomResult)
 	router.POST("/rooms/:id/conclusion", roomHandler.SaveConclusion)
 	router.POST("/rooms/:id/sorena", roomHandler.HandleSorena)
 	router.POST("/rooms/:id/summary", roomHandler.CreateSummary)
