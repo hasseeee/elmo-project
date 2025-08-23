@@ -2,13 +2,14 @@ package handlers
 
 import (
 	"database/sql"
-	"net/http"
+	"errors"
 	"log"
+	"net/http"
 	"sync"
 	"errors"
 
 	"github.com/gin-gonic/gin"
-	"github.com/matoous/go-nanoid/v2"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/shuto.sawaki/elmo-project/internal/ai"
 	"github.com/shuto.sawaki/elmo-project/internal/models"
 )
@@ -80,7 +81,7 @@ func (h *RoomHandler) GetRoomByID(c *gin.Context) {
 	id := c.Param("id")
 	var room models.Room
 	sqlStatement := `SELECT id, title, description, conclusion, status, initial_question FROM rooms WHERE id = $1`
-	err := h.db.QueryRow(sqlStatement, id).Scan(&room.ID, &room.Title, &room.Description, &room.Conclusion, &room.Status, &room.InitialQuestion)
+	err := h.db.QueryRow(sqlStatement, id).Scan(&room.ID, &room.Title, &room.Description, &room.Conclusion, &room.Status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "指定された部屋は見つかりません"})
@@ -95,30 +96,36 @@ func (h *RoomHandler) GetRoomByID(c *gin.Context) {
 // POST /rooms/:id/conclusion
 func (h *RoomHandler) SaveConclusion(c *gin.Context) {
 	roomID := c.Param("id")
+	
 	var req models.ConclusionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "リクエストボディが不正です"})
 		return
 	}
+
 	if req.Conclusion == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "結論は必須です"})
 		return
 	}
+
+	// データベースを更新し、ステータスを'concluded'（結論が出た）に変更
 	_, err := h.db.Exec("UPDATE rooms SET conclusion = $1, status = 'concluded' WHERE id = $2", req.Conclusion, roomID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "サーバー内部エラーです"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "データベースの更新に失敗しました"})
 		return
 	}
+
+	// 更新後の部屋情報を取得して返す
 	var room models.Room
-	err = h.db.QueryRow("SELECT id, title, description, conclusion, status FROM rooms WHERE id = $1", roomID).
+	err = h.db.QueryRow("SELECT id, title, description, conclusion, status, initial_question FROM rooms WHERE id = $1", roomID).
 		Scan(&room.ID, &room.Title, &room.Description, &room.Conclusion, &room.Status)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "サーバー内部エラーです"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新後の部屋情報の取得に失敗しました"})
 		return
 	}
+	
 	c.JSON(http.StatusOK, room)
 }
-
 // GET /rooms/:id/start
 func (h *RoomHandler) StartRoom(c *gin.Context) {
 	roomID := c.Param("id")
@@ -300,7 +307,7 @@ func (h *RoomHandler) GetRoomResult(c *gin.Context) {
 	var wg sync.WaitGroup
 	var roomInfo models.ResultRoomInfo
 	var sorenaSummary models.SorenaSummary
-	var chatLogs []models.ChatLog // ★ LogEntry から ChatLog に変更
+	var chatLogs []models.ChatLog // ★ LogEntryからChatLogに統一
 	var errRoom, errSorena, errLogs error
 
 	wg.Add(3)
@@ -367,10 +374,10 @@ func (h *RoomHandler) GetRoomResult(c *gin.Context) {
 		defer rows.Close()
 
 		for rows.Next() {
-			var log models.ChatLog // ★ LogEntry から ChatLog に変更
+			var log models.ChatLog
 			var userID sql.NullString
 			// ★ ScanするフィールドをChatLogのフィールド名に合わせる
-			if err := rows.Scan(&log.ID, &userID, &log.Message, &log.IsSummary, &log.Timestamp); err != nil {
+			if err := rows.Scan(&log.LogID, &userID, &log.Message, &log.IsSummary, &log.Timestamp); err != nil {
 				errLogs = err
 				return
 			}
@@ -396,7 +403,7 @@ func (h *RoomHandler) GetRoomResult(c *gin.Context) {
 	response := models.RoomResultResponse{
 		RoomInfo:      roomInfo,
 		SorenaSummary: sorenaSummary,
-		ChatLogs:      chatLogs,
+		ChatLogs:      chatLogs, // ★ 変換処理が不要になった
 	}
 
 	c.JSON(http.StatusOK, response)

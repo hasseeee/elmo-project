@@ -4,4 +4,3 @@ package models
 type LogEntry struct {
 	Content string `json:"content" example:"プロジェクトの進捗について話し合いました" description:"ログの内容"`
 	// 他にもタイムスタンプなどの情報が必要であれば、ここに追加します
-}
