@@ -19,7 +19,17 @@ func NewUserHandler(db *sql.DB) *UserHandler {
 	return &UserHandler{db: db}
 }
 
-// POST /users
+// CreateUser godoc
+// @Summary      ユーザーを作成
+// @Description  新しいユーザーを作成します
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        user  body      models.User  true  "ユーザー情報"
+// @Success      201   {object}  models.User
+// @Failure      400   {object}  map[string]interface{}
+// @Failure      500   {object}  map[string]interface{}
+// @Router       /users [post]
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var newUser models.User
 	if err := c.ShouldBindJSON(&newUser); err != nil {

@@ -1,11 +1,6 @@
 package models
 
-import "time"
-
+// LogEntry 会議のログ一件を表す構造体です
 type LogEntry struct {
-	ID        int       `json:"id"`
-	UserID    string    `json:"user_id"`
-	Content   string    `json:"content"`
-	IsSummary bool      `json:"is_summary"`
-	CreatedAt time.Time `json:"created_at"`
-}
+	Content string `json:"content" example:"プロジェクトの進捗について話し合いました" description:"ログの内容"`
+	// 他にもタイムスタンプなどの情報が必要であれば、ここに追加します

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"errors"
 
 	"github.com/gin-gonic/gin"
 	gonanoid "github.com/matoous/go-nanoid/v2"
