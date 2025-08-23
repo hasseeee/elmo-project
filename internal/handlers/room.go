@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"net/http"
+	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/matoous/go-nanoid/v2"
@@ -244,4 +245,45 @@ func (h *RoomHandler) CreateSummary(c *gin.Context) {
 
 	// 5. 成功したが返すコンテンツはない、というステータスを返す
 	c.Status(http.StatusNoContent)
+}
+
+// PUT /rooms/{room_id}/status
+func (h *RoomHandler) UpdateRoomStatus(w http.ResponseWriter, r *http.Request) {
+	roomID := chi.URLParam(r, "room_id")
+
+	var req models.UpdateRoomStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// バリデーション：statusが"done"であることのみを許可
+	if req.Status != "done" {
+		http.Error(w, `status must be "done"`, http.StatusBadRequest)
+		return
+	}
+
+	// データベースを更新するSQL
+	sqlStatement := `UPDATE rooms SET status = $1 WHERE id = $2`
+	result, err := h.db.ExecContext(r.Context(), sqlStatement, req.Status, roomID)
+	if err != nil {
+		log.Printf("failed to update room status: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// 更新対象の行が存在したか確認
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Printf("failed to get rows affected: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		http.Error(w, "room not found", http.StatusNotFound)
+		return
+	}
+
+	// 成功時は 204 No Content を返す
+	w.WriteHeader(http.StatusNoContent)
 }
