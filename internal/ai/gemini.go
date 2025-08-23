@@ -5,86 +5,86 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"github.com/shuto.sawaki/elmo-project/internal/models"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
-	"github.com/shuto.sawaki/elmo-project/internal/models"
-
 )
 
 // GeminiAIGenerator は AIGenerator インターフェースを満たす「本物」の実装です。
 type GeminiAIGenerator struct {
-	// ★ 修正：GenerativeModelを直接持つように変更
-	model *genai.GenerativeModel 
+	model *genai.GenerativeModel
 }
 
 // NewGeminiAIGenerator は、Geminiのクライアントを初期化してジェネレータを作成します。
 func NewGeminiAIGenerator(ctx context.Context) (*GeminiAIGenerator, error) {
 	apiKey := os.Getenv("GOOGLE_API_KEY")
 	if apiKey == "" {
-		return nil, fmt.Errorf("GOOGLE_API_KEY 環境変数が設定されていません")
+        // ★ 修正：エラーメッセージを小文字で始める
+		return nil, fmt.Errorf("GOOGLE_API_KEY environment variable is not set")
 	}
 
-	// ★ 修正：NewClientの呼び出し方を修正
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
-		return nil, fmt.Errorf("Geminiクライアントの作成に失敗しました: %w", err)
+        // ★ 修正：エラーメッセージを小文字で始める
+		return nil, fmt.Errorf("failed to create gemini client: %w", err)
 	}
 
-	// ★ 修正：GenerativeModelを取得する
 	model := client.GenerativeModel("gemini-1.5-flash")
+	model.Temperature = genai.Ptr(float32(1.0)) // temperatureの設定
+
 	return &GeminiAIGenerator{model: model}, nil
 }
 
 // GenerateInitialQuestion は、実際にGemini APIを呼び出して質問を生成します。
-func (g *GeminiAIGenerator) GenerateInitialQuestion(ctx context.Context, title, description string) (string, error) {
-	prompt := fmt.Sprintf("ディスカッションルームの魅力的な最初の問いかけだけを生成してください。トピックに関連した、意義のある議論を促すような質問にしてください。余計な前置きや説明は不要です。\n\nタイトル: %s\n説明: %s", title, description)
-
-	// ★ 修正：modelから直接GenerateContentを呼び出す
-	resp, err := g.model.GenerateContent(ctx, genai.Text(prompt))
-	if err != nil {
-		return "", fmt.Errorf("Gemini APIの呼び出しに失敗しました: %w", err)
-	}
-
-	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("Gemini APIから有効な応答が得られませんでした")
-	}
-
-	if text, ok := resp.Candidates[0].Content.Parts[0].(genai.Text); ok {
-		return string(text), nil
-	}
-
-	return "", fmt.Errorf("Gemini APIの応答形式が予期せぬものです")
-}
-
 func (g *GeminiAIGenerator) SummarizeLogs(ctx context.Context, logs []models.LogEntry) (string, error) {
-	// ログを整形して1つの文字列にする
+	// ログエントリのスライスを一つの文字列に結合する
 	var logBuilder strings.Builder
-	for _, log := range logs {
-		logBuilder.WriteString(fmt.Sprintf("%s: %s\n", log.UserID, log.Message))
+	for _, entry := range logs {
+		logBuilder.WriteString(entry.Content + "\n")
 	}
 
-	// AIへの指示（プロンプト）を作成
-	prompt := fmt.Sprintf("以下の会話ログを簡潔に要約してください。重要なポイントを箇条書きでまとめてください。\n\n---\n%s\n---", logBuilder.String())
+	prompt := fmt.Sprintf("以下の会議のログを、簡潔で分かりやすい結論として要約してください。重要な決定事項や次のアクションがあれば含めてください。\n\nログ:\n%s", logBuilder.String())
 
 	resp, err := g.model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
-		return "", fmt.Errorf("Gemini APIの呼び出しに失敗しました: %w", err)
+		return "", fmt.Errorf("gemini api call failed for summarization: %w", err)
 	}
 
-	// (GenerateInitialQuestion と同じエラーハンドリングとレスポンスの解析)
 	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("Gemini APIから有効な応答が得られませんでした")
+		return "", fmt.Errorf("no valid response from gemini api for summarization")
 	}
 
 	if text, ok := resp.Candidates[0].Content.Parts[0].(genai.Text); ok {
 		return string(text), nil
 	}
 
-	return "", fmt.Errorf("Gemini APIの応答形式が予期せぬものです")
+	return "", fmt.Errorf("unexpected response format from gemini api for summarization")
 }
 
+// Close はクライアント接続を閉じます。
 func (g *GeminiAIGenerator) Close() {
-	// クライアントのクローズ処理が必要な場合はここに追加します。
-	// genai.NewClientには明示的なCloseメソッドがありません。
+	// genai.Clientには明示的なCloseメソッドがありません。
+}
+
+// internal/ai/gemini.go の末尾に追加
+
+// SummarizeLogs は、与えられたログを要約します。
+func (g *GeminiAIGenerator) SummarizeLogs(ctx context.Context, logs string) (string, error) {
+	prompt := fmt.Sprintf("以下の会議のログを、簡潔で分かりやすい結論として要約してください。重要な決定事項や次のアクションがあれば含めてください。\n\nログ:\n%s", logs)
+
+	resp, err := g.model.GenerateContent(ctx, genai.Text(prompt))
+	if err != nil {
+		return "", fmt.Errorf("gemini api call failed for summarization: %w", err)
+	}
+
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("no valid response from gemini api for summarization")
+	}
+
+	if text, ok := resp.Candidates[0].Content.Parts[0].(genai.Text); ok {
+		return string(text), nil
+	}
+
+	return "", fmt.Errorf("unexpected response format from gemini api for summarization")
 }
