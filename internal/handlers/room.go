@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"sync"
-	"errors"
 
 	"github.com/gin-gonic/gin"
 	gonanoid "github.com/matoous/go-nanoid/v2"
@@ -137,11 +136,6 @@ func (h *RoomHandler) StartRoom(c *gin.Context) {
 		return
 	}
 
-	if room.Status != "not started" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "部屋は既に開始されています"})
-		return
-	}
-
 	initialQuestion, err := h.aiGenerator.GenerateInitialQuestion(c.Request.Context(), room.Title, room.Description)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI API呼び出しエラー"})
@@ -210,8 +204,7 @@ func (h *RoomHandler) HandleSorena(c *gin.Context) {
 
 // POST /rooms/:id/summary
 func (h *RoomHandler) CreateSummary(c *gin.Context) {
-	// 1. URLから部屋のIDを取得
-	roomID := c.Param("id")
+	// Note: room ID is not needed for this operation
 
 	// 2. リクエストのJSONデータをGoの構造体に変換
 	var req models.SummaryRequest
@@ -235,24 +228,8 @@ func (h *RoomHandler) CreateSummary(c *gin.Context) {
 		return
 	}
 
-	// 4. 要約結果をDBに保存
-	logID, err := gonanoid.New() // 要約ログの新しいIDを生成
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "IDの生成に失敗しました"})
-		return
-	}
+	
 
-	sqlStatement := `
-		INSERT INTO chat_logs (id, room_id, message, is_summary)
-		VALUES ($1, $2, $3, TRUE)
-	`
-	_, err = h.db.Exec(sqlStatement, logID, roomID, summary)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "データベースへの保存に失敗しました"})
-		return
-	}
-
-	// 5. 成功したが返すコンテンツはない、というステータスを返す
 	c.JSON(http.StatusOK, gin.H{"summary": summary})
 }
 

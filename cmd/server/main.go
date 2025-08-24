@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin" // ★ Ginをインポート
@@ -66,7 +67,6 @@ func main() {
 	router.POST("/rooms/:id/conclusion", roomHandler.SaveConclusion)
 	router.POST("/rooms/:id/sorena", roomHandler.HandleSorena)
 	router.GET("/rooms/:id/summary", roomHandler.CreateSummary)
-	router.GET("/rooms/:id/open", roomHandler.OpenRoom)
 
 	router.POST("/users", userHandler.CreateUser)
 
